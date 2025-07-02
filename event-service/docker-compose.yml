@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  mysql-event:
+    image: mysql:8.0
+    container_name: mysql-event
+    ports:
+      - "3310:3306"  # Maps local port 3310 to container's 3306
+    environment:
+      MYSQL_ROOT_PASSWORD: secret
+      MYSQL_DATABASE: gigs_events
+    volumes:
+      - mysql_event_data:/var/lib/mysql
+    networks:
+      - event-net
+
+volumes:
+  mysql_event_data:
+
+networks:
+  event-net:
+    driver: bridge
