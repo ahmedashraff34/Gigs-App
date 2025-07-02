@@ -1,0 +1,15 @@
+version: "3.8"
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: gigs-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: secret
+      MYSQL_DATABASE: gigs_users
+    ports:
+      - "8084:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+volumes:
+  mysql_data:
