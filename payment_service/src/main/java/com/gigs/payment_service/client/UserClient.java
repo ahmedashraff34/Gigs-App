@@ -2,6 +2,7 @@ package com.gigs.payment_service.client;
 
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -12,13 +13,13 @@ public interface UserClient {
     @PutMapping("api/user/{id}/add-balance")
     ResponseEntity<String> addAmount(
             @PathVariable("id") Long id,
-            @RequestParam("amount") double amount
+            @RequestParam("amount") double amount // <-- fix here
     );
 
     @PutMapping("api/user/{id}/deduct-balance")
     ResponseEntity<String> deductAmount(
             @PathVariable("id") Long id,
-            @RequestParam("amount") double amount
+            @RequestParam("amount") double amount // <-- fix here
     );
 }
 
