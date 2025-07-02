@@ -1,0 +1,16 @@
+version: "3.8"
+
+services:
+  mysql_offers:
+    image: mysql:8.0
+    container_name: gigs_offers_db
+    environment:
+      MYSQL_ROOT_PASSWORD: secret
+      MYSQL_DATABASE: gigs_offers
+    ports:
+      - "3309:3306"
+    volumes:
+      - offers_db_data:/var/lib/mysql
+
+volumes:
+  offers_db_data:
