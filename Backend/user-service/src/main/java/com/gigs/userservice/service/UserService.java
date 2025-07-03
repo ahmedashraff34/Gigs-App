@@ -85,10 +85,6 @@ public class UserService {
 
         boolean updated = false;
 
-        if (body.getUsername() != null && !body.getUsername().equals(user.getUsername())) {
-            user.setUsername(body.getUsername());
-            updated = true;
-        }
         if (body.getFirstName() != null && !body.getFirstName().equals(user.getFirstName())) {
             user.setFirstName(body.getFirstName());
             updated = true;
