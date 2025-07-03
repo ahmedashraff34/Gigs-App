@@ -236,7 +236,6 @@ public class AuthController {
             Map<String, Object> kcBody = new HashMap<>();
             if (body.getFirstName() != null) kcBody.put("firstName", body.getFirstName());
             if (body.getLastName() != null) kcBody.put("lastName", body.getLastName());
-            if (body.getUsername() != null) kcBody.put("username", body.getUsername());
             if (body.getEmail() != null) kcBody.put("email", body.getEmail());
 
             HttpEntity<Map<String, Object>> kcRequest = new HttpEntity<>(kcBody, kcHeaders);
