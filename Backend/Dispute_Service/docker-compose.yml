@@ -1,0 +1,15 @@
+version: "3.8"
+services:
+  mysql_tasks:
+    image: mysql:8.0
+    container_name: gigs_dispute_db
+    environment:
+      MYSQL_ROOT_PASSWORD: secret
+      MYSQL_DATABASE: gigs_dispute
+    ports:
+      - "3312:3306"
+    volumes:
+      - dispute_db_data:/var/lib/mysql
+
+volumes:
+  dispute_db_data:

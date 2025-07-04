@@ -1,0 +1,25 @@
+#spring:
+#  application:
+#    name: dispute-service
+#  cloud:
+#    gateway:
+#      discovery:
+#        locator:
+#          enabled: true
+#      routes:
+#        - id: user-service
+#          uri: lb://user-service
+#          predicates:
+#            - Path=/user/**
+#        - id: task-service
+#          uri: lb://task-service
+#          predicates:
+#            - Path=/task/**
+#
+#server:
+#  port: 8084
+#
+#eureka:
+#  client:
+#    serviceUrl:
+#      defaultZone: http://localhost:8761/eureka/
