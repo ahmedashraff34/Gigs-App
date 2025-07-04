@@ -6,6 +6,7 @@ import com.example.offerservice.DTO.response.TaskResponse;
 import com.example.offerservice.Model.Offer;
 import com.example.offerservice.Model.OfferStatus;
 import com.example.offerservice.client.TaskClient;
+import com.example.offerservice.client.UserClient;
 import com.example.offerservice.repository.OfferRepository;
 import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,11 +20,12 @@ public class OfferService {
 
     private final OfferRepository offerRepo;
     private final TaskClient taskClient;
-
+    private final UserClient userClient;
     @Autowired
-    public OfferService(OfferRepository offerRepo, TaskClient taskClient) {
+    public OfferService(OfferRepository offerRepo, TaskClient taskClient, UserClient userClient) {
         this.offerRepo = offerRepo;
         this.taskClient = taskClient;
+        this.userClient = userClient;
     }
 
     /**
@@ -43,11 +45,23 @@ public class OfferService {
         if (req.getAmount() <= 0 || req.getTaskId() == null || req.getRunnerId() == null) {
             return false;
         }
-
-        // Optional cross-service validation
-        boolean taskExists = taskClient.doesTaskExist(req.getTaskId());
-        if (!taskExists) {
+        try{
+        // ✅ Check if user exists (optional cross-service validation)
+        if(!userClient.existsById(req.getRunnerId())){
             return false;
+        }
+        }catch (Exception e){
+            System.err.println("Failed to check if user exits: "+e.getMessage());
+        }
+
+        try {
+            // ✅ Check if task exists (optional cross-service validation)
+            boolean taskExists = taskClient.doesTaskExist(req.getTaskId());
+            if (!taskExists) {
+                return false;
+            }
+        }catch (Exception e){
+            System.err.println("Failed to check if task exists: "+e.getMessage());
         }
 
         // ✅ Prevent duplicate offer from same runner on this task
@@ -56,7 +70,7 @@ public class OfferService {
             return false;
         }
 
-        // ✅ Prevent placing offer if one is already accepted
+        // ✅ Prevent placing offer if task already has an accepted offer
         List<Offer> offersForTask = offerRepo.findByRegularTask(req.getTaskId());
         boolean taskHasAcceptedOffer = offersForTask.stream()
                 .anyMatch(o -> o.getStatus() == OfferStatus.ACCEPTED);
@@ -64,9 +78,16 @@ public class OfferService {
             return false;
         }
 
+        // ✅ Prevent runner from placing offers if they already have an accepted one
+        boolean runnerHasAcceptedOffer = offerRepo.existsByRunnerIdAndStatus(req.getRunnerId(), OfferStatus.ACCEPTED);
+        if (runnerHasAcceptedOffer) {
+            return false;
+        }
+
         placeOffer(req);
         return true;
     }
+
 
 
 
@@ -147,53 +168,62 @@ public class OfferService {
     /**
      * Accepts a specific offer for a given task.
      */
-    public boolean acceptOffer(Long taskId, Long offerId, Long taskPosterId) {
+    @Transactional
+    public boolean acceptOfferTransactional(Long taskId, Long offerId) {
         // 🔍 First, check if another offer is already accepted for this task
-        List<Offer> offers = offerRepo.findByRegularTask(taskId);
-        boolean alreadyAccepted = offers.stream()
-                .anyMatch(o -> o.getStatus() == OfferStatus.ACCEPTED);
-
-        if (alreadyAccepted) {
-            // 🔴 Prevent accepting a new offer if one is already accepted
+        if (offerRepo.existsByRegularTaskAndStatus(taskId, OfferStatus.ACCEPTED)) {
             return false;
         }
 
         return offerRepo.findById(offerId).map(offer -> {
-            if (offer.getRegularTask().equals(taskId)) {
-                if (offer.getStatus() == OfferStatus.ACCEPTED) {
-                    return false;
-                }
-
-                // 🟢 Accept this offer
-                try {
-                    offer.setStatus(OfferStatus.ACCEPTED);
-                    offerRepo.save(offer);
-                } catch (Exception e) {
-                    System.err.println("Failed to save accepted offer: " + e.getMessage());
-                    return false;
-                }
-
-                // ❌ Delete all other offers on the same task except this one
-                try {
-                    offerRepo.deleteOtherOffersForTask(taskId, offer.getOfferId());
-                } catch (Exception e) {
-                    System.err.println("Failed to delete other offers: " + e.getMessage());
-                    return false;
-                }
-
-                // ✅ Update the task status using taskClient
-                try {
-                    taskClient.acceptRegularTaskOffer(taskId, taskPosterId, offer.getRunnerId(), offer.getAmount());
-                } catch (Exception e) {
-                    System.err.println("Failed to update task status: " + e.getMessage());
-                    return false;
-                }
-
-                return true;
+            if (!offer.getRegularTask().equals(taskId)) {
+                return false;
             }
-            return false;
+
+            if (offer.getStatus() == OfferStatus.ACCEPTED) {
+                return false;
+            }
+
+            // ✅ Prevent runner from having multiple accepted offers
+            boolean runnerHasAccepted = offerRepo.existsByRunnerIdAndStatus(offer.getRunnerId(), OfferStatus.ACCEPTED);
+            if (runnerHasAccepted) {
+                return false;
+            }
+
+            // 🟢 Accept this offer
+            offer.setStatus(OfferStatus.ACCEPTED);
+            offerRepo.save(offer);
+
+            // ❌ Delete all other offers on the same task except this one
+            offerRepo.deleteOtherOffersForTask(taskId, offer.getOfferId());
+
+            return true;
         }).orElse(false);
     }
+
+    public boolean acceptOffer(Long taskId, Long offerId, Long taskPosterId) {
+        boolean dbSuccess = acceptOfferTransactional(taskId, offerId);
+        if (!dbSuccess) return false;
+
+    try { //Existence checks
+        if (!userClient.existsById(taskPosterId)) {
+            throw new RuntimeException("TaskPoster not found: " + taskPosterId);
+        }
+    }catch (Exception e){
+        System.err.println("Failed to check if task poster exists: "+e.getMessage());
+    }
+        // ✅ Call external service after DB operations succeed
+        try {
+            Offer offer = offerRepo.findById(offerId).orElseThrow();
+            taskClient.acceptRegularTaskOffer(taskId, taskPosterId, offer.getRunnerId(), offer.getAmount());
+            return true;
+        } catch (Exception e) {
+            System.err.println("❌ Failed to update task status via taskClient: " + e.getMessage());
+            // Optional: log this to DB, or retry later
+            return false;
+        }
+    }
+
 
 
 
@@ -224,6 +254,17 @@ public class OfferService {
                 .stream()
                 .map(this::mapToDTO)
                 .collect(Collectors.toList());
+    }
+
+
+    // Returns the number of offers placed for a task
+    public long getOfferCountForTask(Long taskId) {
+        return offerRepo.countByRegularTask(taskId);
+    }
+
+    // Returns true if this runner has placed an offer on the task
+    public boolean hasRunnerOffered(Long runnerId, Long taskId) {
+        return offerRepo.existsByRunnerIdAndRegularTask(runnerId, taskId);
     }
 
     /**

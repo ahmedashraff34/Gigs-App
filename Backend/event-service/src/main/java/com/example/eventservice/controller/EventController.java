@@ -60,9 +60,11 @@ public class EventController {
     }
 
     // PUT /api/events/approve/{applicationId}
-    @PutMapping("/approve/{applicationId}")
-    public ResponseEntity<String> approveApplication(@PathVariable Long applicationId) {
-        boolean success = eventService.approveApplication(applicationId);
+    @PutMapping("/{taskPoster}/approve/{applicationId}")
+    public ResponseEntity<String> approveApplication(
+            @PathVariable Long taskPoster,
+            @PathVariable Long applicationId) {
+        boolean success = eventService.approveApplication(taskPoster, applicationId);
         if (success) {
             return ResponseEntity.ok("Runner approved and added to task.");
         } else {
@@ -81,6 +83,21 @@ public class EventController {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(Map.of("error", ex.getMessage()));
         }
+    }
+    @GetMapping("/remaining-seats/{taskId}")
+    public ResponseEntity<Integer> getRemainingSeats(@PathVariable Long taskId) {
+        try {
+            int remaining = eventService.getRemainingSeats(taskId);
+            return ResponseEntity.ok(remaining);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().build(); // returns 400 with empty body
+        }
+    }
+
+    @GetMapping("/applications/runner/{runnerId}")
+    public ResponseEntity<List<EventResponse>> getApplicationsByRunner(@PathVariable Long runnerId) {
+        List<EventResponse> responses = eventService.getApplicationsByRunner(runnerId);
+        return ResponseEntity.ok(responses);
     }
 
     @DeleteMapping("/delete/{taskId}")

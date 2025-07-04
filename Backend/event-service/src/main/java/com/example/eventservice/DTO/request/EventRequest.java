@@ -10,6 +10,5 @@ public class EventRequest {
     private Long taskId;
     private Long applicantId;
     private String resumeLink;
-    private String videoUrl;
     private String comment;
 }

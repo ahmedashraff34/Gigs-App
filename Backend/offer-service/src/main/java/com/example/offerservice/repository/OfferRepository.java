@@ -15,13 +15,15 @@ import java.util.List;
         List<Offer> findByRunnerIdAndStatus(Long runnerId, OfferStatus status);
         List<Offer> findByRunnerId(Long runnerId);
         List<Offer> findByRegularTaskAndStatus(Long taskId, OfferStatus status);
-
+        boolean existsByRunnerIdAndStatus(Long runnerId, OfferStatus status);
+        boolean existsByRegularTaskAndStatus(Long taskId, OfferStatus status);
         @Modifying
         @Transactional
         int deleteByRegularTask(Long taskId);
 
         boolean existsByRunnerIdAndRegularTask(Long runnerId, Long taskId);
-
+        // Count number of offers for a specific task
+        long countByRegularTask(Long taskId);
 
 
         @Modifying

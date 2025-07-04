@@ -99,6 +99,38 @@ public class OfferController {
         }
     }
 
+    /**
+     * Endpoint to return number of offers for a given task
+     */
+    @GetMapping("/count/{taskId}")
+    public ResponseEntity<Long> getOfferCount(@PathVariable Long taskId) {
+        long count = offerService.getOfferCountForTask(taskId);
+        return ResponseEntity.ok(count);
+    }
+
+    /**
+     * Endpoint to check if a runner has already offered on a task
+     */
+    @GetMapping("/exists")
+    public ResponseEntity<?> hasRunnerOffered(
+            @RequestParam Long taskId,
+            @RequestParam Long runnerId) {
+
+        boolean exists = offerService.hasRunnerOffered(runnerId, taskId);
+
+        if (!exists) {
+            // ❌ Runner has not placed an offer — return 400 Bad Request
+            return ResponseEntity
+                    .badRequest()
+                    .body("Runner has not placed an offer on this task.");
+        }
+
+        // ✅ Runner has placed an offer — return true
+        return ResponseEntity.ok(true);
+    }
+
+
+
 
     // Get all accepted task IDs for a given runner
     @GetMapping("/accepted/runner/{runnerId}")

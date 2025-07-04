@@ -4,6 +4,7 @@ import com.example.eventservice.DTO.request.EventRequest;
 import com.example.eventservice.DTO.response.EventResponse;
 import com.example.eventservice.DTO.response.TaskResponse;
 import com.example.eventservice.client.TaskClient;
+import com.example.eventservice.client.UserClient;
 import com.example.eventservice.model.ApplicationStatus;
 import com.example.eventservice.model.EventApplication;
 import com.example.eventservice.repository.EventApplicationRepository;
@@ -22,11 +23,13 @@ public class EventService {
 
     private final EventApplicationRepository applicationRepo;
     private final TaskClient taskClient;
+    private final UserClient userClient;
 
     @Autowired
-    public EventService(EventApplicationRepository applicationRepo, TaskClient taskClient) {
+    public EventService(EventApplicationRepository applicationRepo, TaskClient taskClient, UserClient userClient) {
         this.applicationRepo = applicationRepo;
         this.taskClient = taskClient;
+        this.userClient = userClient;
     }
 
     /**
@@ -37,6 +40,16 @@ public class EventService {
         if (req.getTaskId() == null || req.getApplicantId() == null) {
             return false;
         }
+        try{
+            // ✅ Check if user exists (optional cross-service validation)
+            if(!userClient.existsById(req.getApplicantId())){
+                return false;
+            }
+        }catch (Exception e){
+            System.err.println("Failed to check if user exits: "+e.getMessage());
+        }
+
+        try {
 
         // 🛑 Reject duplicate applications
         boolean alreadyApplied = applicationRepo.existsByApplicantIdAndEventTask(req.getApplicantId(), req.getTaskId());
@@ -75,7 +88,9 @@ public class EventService {
                 return false;
             }
         }
-
+        }catch (Exception e){
+            System.err.println("Failed to retrieve task: "+e.getMessage());
+        }
         // ✅ Proceed to apply
         applyToEventTask(req);
         return true;
@@ -91,9 +106,7 @@ public class EventService {
         app.setEventTask(req.getTaskId());
         app.setComment(req.getComment());
         app.setProfileResumeLink(req.getResumeLink());
-        app.setVideoUrl(req.getVideoUrl());
         app.setStatus(ApplicationStatus.PENDING); // ✅ Default state
-
         return applicationRepo.save(app);
     }
 
@@ -140,7 +153,7 @@ public class EventService {
      * Accepts/approves an application (status = APPROVED).
      * Also notifies the task-service to add the runner to the task's internal list.
      */
-    public boolean approveApplication(Long applicationId) {
+    public boolean approveApplication(Long taskPoster,Long applicationId) {
         Optional<EventApplication> optional = applicationRepo.findById(applicationId);
         if (optional.isEmpty()) return false;
 
@@ -154,7 +167,7 @@ public class EventService {
 
         // 🔁 Notify task-service to assign runner
         try {
-            taskClient.addRunnerToEventTask(app.getEventTask(), app.getApplicantId());
+            taskClient.addRunnerToEventTask(app.getEventTask(), app.getApplicantId(),taskPoster);
         } catch (Exception e) {
             System.err.println("Failed to notify task-service: " + e.getMessage());
             return false;
@@ -181,7 +194,25 @@ public class EventService {
         applicationRepo.deleteAll(apps);
 
     }
+    //retrieve remaining seats for an event
+    public int getRemainingSeats(Long taskId) {
+    try {
+        TaskResponse task = taskClient.getEventTaskById(taskId);
+        if (task == null) return 0;
+        long acceptedCount = applicationRepo.countAcceptedApplicationsByTaskId(taskId);
+        return task.getRequiredPeople() - (int) acceptedCount;
+    }catch (Exception e){
+        System.err.println(e.getMessage());
+    }
+    return 0;
+    }
 
+    public List<EventResponse> getApplicationsByRunner(Long runnerId) {
+        List<EventApplication> apps = applicationRepo.findByApplicantId(runnerId);
+        return apps.stream()
+                .map(this::mapToDto)
+                .collect(Collectors.toList());
+    }
 
     /**
      * Converts an EventApplication entity into a DTO for response.

@@ -340,6 +340,7 @@ public class TaskService {
 //            throw new IllegalStateException(
 //                    "Cannot add runner to a task that is " + task.getStatus());
 //        }
+        
 
         // 4) duplicate check
         if (task.getRunnerIds().contains(runnerId)) {
