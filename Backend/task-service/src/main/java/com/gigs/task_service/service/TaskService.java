@@ -260,7 +260,6 @@ public class TaskService {
         } catch (Exception e) {
             System.err.println("Failed to process payment for RegularTask: " + e.getMessage());
         }
-        taskRepository.save(task);
         // MFROOOD NOTFICATION SERVICE B2A OR CLIENT Y3NY Y3RF EL RUNNER
         //notificationService.notifyRunnerAccepted(taskId, runnerId);
 
