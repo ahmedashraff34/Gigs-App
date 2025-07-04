@@ -248,7 +248,7 @@ public class TaskService {
 
         // 8) update amount to match el offer
         task.setAmount(amount);
-
+        taskRepository.save(task);
         //TODO: 7ot el paymentClient.process  bel amount
         try {
             paymentClient.processPayment(new PaymentRequest(

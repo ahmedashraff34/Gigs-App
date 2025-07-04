@@ -36,11 +36,12 @@ public class EscrowPaymentProcessor implements PaymentProcessor {
                 || paymentRequest.getRecipient()==0L || paymentRequest.getTaskId() == 0L){
             return false;
         }
-        //34an lw already l task processes fa n avoid duplication w kda
-        if (paymentRepo.findByTaskId(paymentRequest.getTaskId()) != null) {
-            System.err.println("An escrow payment already exists for this task ID: " + paymentRequest.getTaskId());
-            return false;
-        }
+        
+//        //34an lw already l task processes fa n avoid duplication w kda
+//        if (paymentRepo.findByTaskId(paymentRequest.getTaskId()) != null) {
+//            System.err.println("An escrow payment already exists for this task ID: " + paymentRequest.getTaskId());
+//            return false;
+//        }
 
         if(paymentRequest.getPayer()==paymentRequest.getRecipient()) return false;
         try{
