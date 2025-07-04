@@ -225,7 +225,7 @@ public class EventService {
                 .comment(app.getComment())
                 .status(app.getStatus())
                 .resumeLink(app.getProfileResumeLink())
-                .videoUrl(app.getVideoUrl())
+//                .videoUrl(app.getVideoUrl())
                 .profilePic("Profile Pic Placeholder")         // Will later be fetched from user-service
                 .applicantName("Runner Name Placeholder")
                 .build();

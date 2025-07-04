@@ -1,6 +1,4 @@
-package com.example.eventservice.client;
-
-
+package com.example.Dispute_Service.Client;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;

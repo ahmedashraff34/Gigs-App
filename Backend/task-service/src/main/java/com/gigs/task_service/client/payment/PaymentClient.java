@@ -5,15 +5,15 @@ import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-@FeignClient(name = "payment-service", path = "/api/payments")
+@FeignClient(name = "payment-service")
 public interface PaymentClient {
 
-    @PostMapping("/process")
+    @PostMapping(value = "/api/payments/process")
     ResponseEntity<String> processPayment(@RequestBody PaymentRequest request);
 
-    @PostMapping("/release/{taskId}")
+    @PostMapping(value = "/api/payments/release/{taskId}")
     ResponseEntity<String> releasePayment(@PathVariable("taskId") Long taskId, @RequestParam Long recipient);
 
-    @PostMapping("/refund/{taskId}")
+    @PostMapping(value = "/api/payments/refund/{taskId}")
     ResponseEntity<String> refundPayment(@PathVariable("taskId") Long taskId);
 }

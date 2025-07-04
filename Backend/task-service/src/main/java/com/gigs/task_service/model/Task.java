@@ -45,7 +45,7 @@ public abstract class Task {
     private JsonNode additionalRequirements;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(nullable = false, length = 20)
     private TaskStatus status = TaskStatus.OPEN;
 
 
