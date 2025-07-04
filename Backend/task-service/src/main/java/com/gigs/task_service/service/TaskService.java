@@ -265,19 +265,23 @@ public class TaskService {
 
     }
 
-
     public boolean isInProgressWith(Long taskId, Long taskPosterId, Long runnerId) {
         return taskRepository.findById(taskId)
-                .filter(t -> t instanceof RegularTask)
-                .map(t -> (RegularTask) t)
-                .map(rt ->
-                        rt.getStatus() == TaskStatus.IN_PROGRESS &&
-                                rt.getTaskPoster() == taskPosterId &&
+                .map(task -> {
+                    if (task instanceof RegularTask rt) {
+                        return rt.getStatus() == TaskStatus.IN_PROGRESS &&
+                                rt.getTaskPoster().equals(taskPosterId) &&
+                                rt.getRunnerId() != 0L &&
                                 rt.getRunnerId() == runnerId &&
-                                runnerId  != taskPosterId
-                )
+                                !runnerId.equals(taskPosterId);
+                    } else if (task instanceof EventStaffingTask est) {
+                        return true;
+                    }
+                    return false;
+                })
                 .orElse(false);
     }
+
 
 
     public List<TaskResponse> getNearbyOpenTasks(
@@ -361,8 +365,11 @@ public class TaskService {
         // 9) Assign the runner
         task.getRunnerIds().add(runnerId);
 
+        taskRepository.save(task);
+
         // 10) Process payment reservation
         try {
+
             paymentClient.processPayment(new PaymentRequest(
                     task.getTaskPoster(),
                     runnerId,
@@ -376,7 +383,7 @@ public class TaskService {
         }
 
         // 11) Save the updated task
-        taskRepository.save(task);
+
     }
 
 
