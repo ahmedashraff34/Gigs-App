@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 @FeignClient(name = "task-service")
 public interface TaskClient {
 
-    @GetMapping("api/tasks/{taskId}")
+    @GetMapping("api/tasks/regular/{taskId}")
     TaskResponse getTaskById(@PathVariable("taskId") Long taskId);
     @GetMapping("api/tasks/{id}/exists")
     Boolean doesTaskExist(@PathVariable("id") Long taskId);

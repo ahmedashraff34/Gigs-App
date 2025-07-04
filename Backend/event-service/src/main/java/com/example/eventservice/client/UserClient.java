@@ -15,7 +15,7 @@ import java.util.Map;
 public interface UserClient {
 
     @PostMapping(
-            value    = "/api/auth/existsById"
+            value    = "/api/user/existsById"
     )
     Boolean existsById(@RequestParam long id);
 

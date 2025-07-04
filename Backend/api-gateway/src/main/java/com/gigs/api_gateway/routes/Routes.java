@@ -19,6 +19,18 @@ public class Routes {
                 .route("task-service", r -> r
                         .path("/api/tasks/**")
                         .uri("lb://task-service"))
+                .route("offer-service", r -> r
+                        .path("/api/offers/**")
+                        .uri("lb://offer-service"))
+
+                .route("event-service", r -> r
+                        .path("/api/events/**")
+                        .uri("lb://event-service"))
+
+                .route("payment-service", r -> r
+                        .path("/api/payments/**")
+                        .uri("lb://payment-service"))
+
 
                 .build();
     }
