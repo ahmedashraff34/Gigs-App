@@ -15,6 +15,7 @@ public class UserResponse {
     private String phoneNumber;
     private boolean isVerified;
     private String username;
+    private double balance;
     private String keycloakId;
 
     public static UserResponse fromUser(User user) {
@@ -27,6 +28,7 @@ public class UserResponse {
                 .isVerified(user.isVerified())
                 .username(user.getUsername())
                 .keycloakId(user.getKeycloakId())
+                .balance(user.getBalance())
                 .build();
     }
 }

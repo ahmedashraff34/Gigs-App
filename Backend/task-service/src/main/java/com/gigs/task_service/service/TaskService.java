@@ -136,7 +136,7 @@ public class TaskService {
         Task task = taskOptional.get();
 
         // Prevent updates on completed or cancelled or done tasks
-        if (task.getStatus() == TaskStatus.COMPLETED || task.getStatus()== TaskStatus.DONE ||task.getStatus() == TaskStatus.CANCELLED) {
+        if (task.getStatus() == TaskStatus.COMPLETED ||task.getStatus() == TaskStatus.CANCELLED) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body("Cannot update a task that is already " + task.getStatus());
         }

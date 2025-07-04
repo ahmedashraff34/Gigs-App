@@ -23,7 +23,7 @@ public class PaymentController {
         if (success) {
             return ResponseEntity.ok("Payment processed successfully.");
         } else {
-            return ResponseEntity.badRequest().body("Payment processing failed.");
+            return ResponseEntity.badRequest().body("Payment processing failed." + request);
         }
     }
 

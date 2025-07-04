@@ -26,7 +26,7 @@ public class UserService {
                 .email(req.getEmail())
                 .phoneNumber(req.getPhoneNumber())
                 .isVerified(false)
-                .balance(req.getBalance())
+                .balance(5000)
                 .build();
 
         User savedUser = userRepository.save(user); // <- fix here
