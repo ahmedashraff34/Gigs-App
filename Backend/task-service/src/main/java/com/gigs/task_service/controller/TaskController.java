@@ -240,9 +240,10 @@ public class TaskController {
     @PostMapping("/{taskId}/add-runner/{runnerId}")
     public ResponseEntity<Void> addRunnerToEventTask(
             @PathVariable Long taskId,
-            @PathVariable Long runnerId) {
+            @PathVariable Long runnerId,
+            @RequestParam Long taskPoster) {
         try {
-            taskService.addRunnerToEventTask(taskId, runnerId);
+            taskService.addRunnerToEventTask(taskId, runnerId, taskPoster);
             return ResponseEntity.noContent().build();
         } catch (IllegalArgumentException e) {
             // bad input, wrong type, runner or task not found

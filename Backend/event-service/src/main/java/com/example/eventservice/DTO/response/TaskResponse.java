@@ -5,6 +5,7 @@ import lombok.*;
 import lombok.experimental.SuperBuilder;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 @Data
 @SuperBuilder
@@ -20,11 +21,12 @@ public class TaskResponse {
     private double latitude;
     private JsonNode additionalRequirements;
     private String status;
-    //Event Staffin task response related attributes :)
+    //Event Staffing task response related attributes :)
     private String location;
     private double fixedPay;
     private int requiredPeople;
     //for time constraints
+    private LocalDateTime createdDate;
     private LocalDate startDate;
     private LocalDate endDate;
     //for possibly QR

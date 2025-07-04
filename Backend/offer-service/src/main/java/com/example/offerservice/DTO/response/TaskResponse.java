@@ -5,6 +5,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import lombok.*;
 import lombok.experimental.SuperBuilder;
 
+import java.time.LocalDateTime;
+
 @Data
 @SuperBuilder
 @NoArgsConstructor
@@ -22,5 +24,6 @@ public class TaskResponse {
     //Regular task response related attributes :)
     private double amount;
     private JsonNode additionalAttributes;
+    private LocalDateTime createdDate;
 
 }

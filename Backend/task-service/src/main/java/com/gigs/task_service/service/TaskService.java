@@ -318,46 +318,51 @@ public class TaskService {
     }
 
     @Transactional
-    public void addRunnerToEventTask(Long taskId, Long runnerId) {
-        // 1) load & type-check
+    public void addRunnerToEventTask(Long taskId, Long runnerId, Long taskPosterId) {
+        // 1) Verify that the task poster exists in the User Service
+        if (!userClient.existsById(taskPosterId)) {
+            throw new IllegalArgumentException("Task poster not found: " + taskPosterId);
+        }
+
+        // 2) Load the task from the DB
         Task t = taskRepository.findById(taskId)
-                .orElseThrow(() ->
-                        new IllegalArgumentException("Task not found: " + taskId));
+                .orElseThrow(() -> new IllegalArgumentException("Task not found: " + taskId));
+
+        // 3) Ensure the task is an EventStaffingTask
         if (!(t instanceof EventStaffingTask)) {
-            throw new IllegalArgumentException(
-                    "Task " + taskId + " is not an EventStaffingTask");
+            throw new IllegalArgumentException("Task " + taskId + " is not an EventStaffingTask");
         }
         EventStaffingTask task = (EventStaffingTask) t;
 
-        // 2) existance check
+        // 4) Ensure the given taskPosterId matches the actual task poster
+        if (!task.getTaskPoster().equals(taskPosterId)) {
+            throw new IllegalArgumentException("Provided taskPosterId does not match task owner");
+        }
+
+        // 5) Verify that the runner exists
         if (!userClient.existsById(runnerId)) {
-            throw new IllegalArgumentException(
-                    "Runner not found: " + runnerId);
+            throw new IllegalArgumentException("Runner not found: " + runnerId);
         }
 
-        // 3) status check (shof nta 3yzha wla la -> ali)
-//        if (task.getStatus() != TaskStatus.OPEN) {
-//            throw new IllegalStateException(
-//                    "Cannot add runner to a task that is " + task.getStatus());
-//        }
-        
+        // 6) Optional: check task status (uncomment if needed)
+//    if (task.getStatus() != TaskStatus.OPEN) {
+//        throw new IllegalStateException("Cannot add runner to a task that is " + task.getStatus());
+//    }
 
-        // 4) duplicate check
+        // 7) Prevent duplicate assignment
         if (task.getRunnerIds().contains(runnerId)) {
-            throw new IllegalStateException(
-                    "Runner " + runnerId + " is already assigned");
+            throw new IllegalStateException("Runner " + runnerId + " is already assigned");
         }
 
-        // 5) capacity check
+        // 8) Check if task is already fully staffed
         if (task.getRunnerIds().size() >= task.getRequiredPeople()) {
-            throw new IllegalStateException(
-                    "Event is already fully staffed");
+            throw new IllegalStateException("Event is already fully staffed");
         }
 
-        // 6) assign & save
+        // 9) Assign the runner
         task.getRunnerIds().add(runnerId);
 
-        //TODO: 7ot paymentClient.process wel amount= task.fixedPay
+        // 10) Process payment reservation
         try {
             paymentClient.processPayment(new PaymentRequest(
                     task.getTaskPoster(),
@@ -366,11 +371,15 @@ public class TaskService {
                     (long) task.getFixedPay()
             ));
         } catch (Exception e) {
-            System.err.println("Failed to process payment for EventStaffingTask runner ID " + runnerId + ": " + e.getMessage());
+            System.err.println("Failed to process payment for EventStaffingTask runner ID "
+                    + runnerId + ": " + e.getMessage());
+            throw new IllegalStateException("Payment processing failed, runner not added");
         }
 
+        // 11) Save the updated task
         taskRepository.save(task);
     }
+
 
     public List<TaskResponse> getOngoingTasksForPoster(Long posterId) {
         return taskRepository.findByTaskPosterAndStatus(posterId, TaskStatus.IN_PROGRESS)

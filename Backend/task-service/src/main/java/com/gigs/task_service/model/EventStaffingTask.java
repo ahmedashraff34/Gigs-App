@@ -92,6 +92,7 @@ public class EventStaffingTask extends Task {
                 .startDate(startDate)
                 .endDate(endDate)
                 .numberOfDays(numberOfDays)
+                .createdDate(getCreatedDate())
                 .build();
     }
 

@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import lombok.*;
 import lombok.experimental.SuperBuilder;
 
+import java.time.LocalDateTime;
+
 @Data
 @SuperBuilder
 @NoArgsConstructor
@@ -18,4 +20,5 @@ public class TaskResponse {
     private double latitude;
     private JsonNode additionalRequirements;
     private String status;
+    private LocalDateTime createdDate;
 }

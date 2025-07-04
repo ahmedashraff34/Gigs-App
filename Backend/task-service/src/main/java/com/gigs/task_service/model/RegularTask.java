@@ -62,6 +62,7 @@ public class RegularTask extends Task {
                 .amount(getAmount())
                 .additionalAttributes(getAdditionalAttributes())
                 .runnerId(getRunnerId())
+                .createdDate(getCreatedDate())
                 .build();
     }
 
