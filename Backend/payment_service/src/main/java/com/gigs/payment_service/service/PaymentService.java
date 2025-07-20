@@ -24,8 +24,8 @@ public class PaymentService {
         return paymentProcessor.releasePayment(taskId,recipient);
     }
 
-    public boolean refundPayment(Long taskId) {
-        return paymentProcessor.refundPayment(taskId);
+    public boolean refundPayment(Long taskId, Long recipient) {
+        return paymentProcessor.refundPayment(taskId,recipient);
     }
 
 }

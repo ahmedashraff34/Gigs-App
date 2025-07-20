@@ -33,7 +33,8 @@ public class EventStaffingFactory extends TaskFactory {
                 eventRequest.getAdditionalRequirements(),
                 eventRequest.getStartDate(),
                 eventRequest.getEndDate(),
-                eventRequest.getNumberOfDays()
+                eventRequest.getNumberOfDays(),
+                eventRequest.getImageUrls()
         );
     }
 }

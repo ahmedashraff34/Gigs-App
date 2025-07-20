@@ -9,7 +9,6 @@ import com.example.eventservice.model.ApplicationStatus;
 import com.example.eventservice.model.EventApplication;
 import com.example.eventservice.repository.EventApplicationRepository;
 import jakarta.persistence.EntityNotFoundException;
-import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -124,19 +123,27 @@ public class EventService {
         return true;
     }
 
+    public boolean removeApplication(Long runnerId, Long taskId) {
+        Optional<EventApplication> optionalApp = applicationRepo.findByApplicantIdAndEventTask(runnerId, taskId);
+        if (optionalApp.isEmpty()) return false;
+       // if(optionalApp.get().getStatus()==ApplicationStatus.PAID) return false;
+        applicationRepo.delete(optionalApp.get());
+
+        return true;
+    }
+
     /**
      * Returns all event tasks a runner has applied to (excluding WITHDRAWN).
      */
     public List<TaskResponse> getTasksForRunner(Long runnerId) {
         return applicationRepo.findByApplicantId(runnerId)
                 .stream()
-                .filter(app -> app.getStatus() != ApplicationStatus.WITHDRAWN) // 🧹 Skip withdrawn
-                .map(EventApplication::getEventTask)
+                .filter(app -> app.getStatus() != ApplicationStatus.WITHDRAWN)
+                .map(EventApplication::getEventTask) // ✅ This is already the taskId (Long)
                 .distinct()
                 .map(taskClient::getEventTaskById)
                 .collect(Collectors.toList());
     }
-
     /**
      * Gets all applicants (with DTOs) for a specific task.
      * WITHDRAWN ones are excluded.
@@ -187,6 +194,19 @@ public class EventService {
         app.setStatus(newStatus);
         applicationRepo.save(app);
     }
+
+     public void updateStatusForAllRunners(Long taskId, ApplicationStatus newStatus) {
+       List <EventApplication> apps = applicationRepo.findByEventTask(taskId);
+       for (EventApplication app : apps) {
+
+           if (app.getStatus() == newStatus) {
+               throw new IllegalStateException("Status already set to " + newStatus);
+           }
+
+           app.setStatus(newStatus);
+           applicationRepo.save(app);
+       }
+    }
     // delete all applications for a task
 
     public void deleteAllApplicationsForTask(Long taskId) {
@@ -225,7 +245,7 @@ public class EventService {
                 .comment(app.getComment())
                 .status(app.getStatus())
                 .resumeLink(app.getProfileResumeLink())
-//                .videoUrl(app.getVideoUrl())
+                .videoUrl(app.getVideoUrl())
                 .profilePic("Profile Pic Placeholder")         // Will later be fetched from user-service
                 .applicantName("Runner Name Placeholder")
                 .build();

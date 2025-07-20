@@ -5,6 +5,7 @@ import com.gigs.userservice.dto.request.AddUserBody;
 import com.gigs.userservice.dto.request.UpdateBasicProfileBody;
 import com.gigs.userservice.dto.response.UserResponse;
 import com.gigs.userservice.service.UserService;
+import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -20,6 +21,7 @@ import java.util.NoSuchElementException;
 @RequestMapping("/api/user")
 @RequiredArgsConstructor
 @Validated
+@CrossOrigin(origins = "http://localhost:5173")
 public class UserController {
 
     private final UserService userService;
@@ -111,6 +113,22 @@ public class UserController {
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @PatchMapping("/{id}/profile-url")
+    public ResponseEntity<String> updateProfileUrl(
+            @PathVariable Long id,
+            @RequestParam String profileUrl) {
+
+        try {
+            userService.updateProfileUrl(id, profileUrl);
+            return ResponseEntity.ok("Profile URL updated successfully.");
+        } catch (EntityNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("User not found.");
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("An unexpected error occurred: " + e.getMessage());
         }
     }
 

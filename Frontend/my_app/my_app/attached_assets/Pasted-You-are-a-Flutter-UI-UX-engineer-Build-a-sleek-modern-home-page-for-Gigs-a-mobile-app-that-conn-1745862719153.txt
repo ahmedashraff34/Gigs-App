@@ -1,0 +1,35 @@
+You are a Flutter UI/UX engineer. Build a sleek, modern home page for “Gigs,” a mobile app that connects people who need one-time errands done with vetted runners. The home page should:
+
+1. *Hero & Search*  
+   - Full-width greeting banner showing user’s name and location (“Good afternoon, Sherif — Cairo”).  
+   - Prominent search bar with placeholder “Search tasks near you…”.  
+   - Filter icon on the right for quick access to category, distance, urgency filters.
+
+2. *Category Carousel*  
+   - Horizontally scrollable chips or icons for popular categories (e.g. Moving, Cleaning, Grocery, Custom).  
+   - “+ Custom” chip at the end to let users define a new category.
+
+3. *Map Preview*  
+   - Interactive map snapshot (or placeholder) showing pins for nearby tasks.  
+   - Tappable overlay that expands to full-screen map view.
+
+4. *Task List*  
+   - Vertical list of task cards below the map:  
+     - Each card shows task title, brief description, distance, pay, and urgency badge if applicable.  
+     - Small runner avatar or icon of the category.  
+     - Soft shadows, 2xl rounded corners, and a consistent card height.
+
+5. *Call to Action*  
+   - Floating action button (FAB) at bottom right with “+ Post a Task” icon.  
+   - Button style: primary accent color, slight drop shadow, subtle scale-on-press animation.
+
+6. *Bottom Navigation Bar*  
+   - Five tabs: Home (active), Browse, Messages, Post Task, Profile.  
+   - Use Material icons and clear labels.
+
+7. *Styling & Animation*  
+   - Use a light theme with a white background, primary color (#4A76A8) for accents, and neutral grays for text.  
+   - Lato or Roboto font, medium weight for headings, regular for body text.  
+   - Micro-interactions: fade-in cards on scroll, ripple effect on taps.
+
+Generate Flutter code (stateless widgets) with appropriate layouts (Column, Row, Stack, ListView, BottomNavigationBar), custom components for TaskCard and CategoryChip, and placeholder data. Ensure all paddings, margins, and typography follow a cohesive, modern design system.

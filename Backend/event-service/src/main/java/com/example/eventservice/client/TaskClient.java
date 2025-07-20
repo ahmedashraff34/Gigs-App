@@ -10,7 +10,7 @@ import java.util.List;
 public interface TaskClient {
 
     // Get a single task by its ID (used when getting the full details of one task)
-    @GetMapping("event/{taskId}")
+    @GetMapping("/event/{taskId}")
     TaskResponse getEventTaskById(@PathVariable("taskId") Long taskId);
     // Add a runner to an EventStaffingTask
     @PostMapping("/{taskId}/add-runner/{runnerId}")

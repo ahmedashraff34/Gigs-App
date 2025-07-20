@@ -28,7 +28,8 @@ public class RegularTaskFactory extends TaskFactory {
                 regularRequest.getLatitude(),
                 regularRequest.getAmount(),
                 regularRequest.getAdditionalRequirements(),
-                regularRequest.getAdditionalAttributes()
+                regularRequest.getAdditionalAttributes(),
+                regularRequest.getImageUrls()
         );
     }
 }

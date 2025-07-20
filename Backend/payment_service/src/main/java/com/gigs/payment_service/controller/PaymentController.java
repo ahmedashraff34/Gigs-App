@@ -38,8 +38,8 @@ public class PaymentController {
     }
 
     @PostMapping("/refund/{taskId}")
-    public ResponseEntity<String> refundPayment(@PathVariable Long taskId) {
-        boolean success = paymentService.refundPayment(taskId);
+    public ResponseEntity<String> refundPayment(@PathVariable Long taskId,@RequestParam Long recipient) {
+        boolean success = paymentService.refundPayment(taskId,recipient);
         if (success) {
             return ResponseEntity.ok("Payment refunded successfully.");
         } else {

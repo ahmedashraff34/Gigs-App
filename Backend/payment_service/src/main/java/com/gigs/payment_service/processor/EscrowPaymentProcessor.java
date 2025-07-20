@@ -107,14 +107,14 @@ public class EscrowPaymentProcessor implements PaymentProcessor {
     }
 
     @Override
-    public boolean refundPayment(Long taskId) {
-        Payment payment = paymentRepo.findByTaskId(taskId);
+    public boolean refundPayment(Long taskId, Long recipient) {
+        Payment payment = paymentRepo.findByTaskIdAndRecipient(taskId, recipient);
         if (payment == null) {
             System.err.println("No payment found for task ID: " + taskId);
             return false;
         }
 
-        if (payment.getStatus() != PaymentStatus.PENDING || payment.getStatus() != PaymentStatus.HELD) {
+        if (payment.getStatus() != PaymentStatus.PENDING && payment.getStatus() != PaymentStatus.HELD) {
             System.err.println("Payment is not in PENDING or HELD state. Cannot refund again.");
             return false;
         }

@@ -46,6 +46,16 @@ public class EventController {
             return ResponseEntity.badRequest().body("Failed to cancel application.");
         }
     }
+    // DELETE /api/events/cancel
+    @DeleteMapping("/remove")
+    public ResponseEntity<String> removeApplication(@RequestParam Long runnerId, @RequestParam Long taskId) {
+        boolean success = eventService.removeApplication(runnerId, taskId);
+        if(success) {
+            return ResponseEntity.ok("Application cancelled successfully.");
+        }   else {
+            return ResponseEntity.badRequest().body("Failed to cancel application.");
+        }
+    }
 
     // GET /api/events/runner/{runnerId}/tasks
     @GetMapping("/runner/{runnerId}/tasks")
@@ -84,6 +94,20 @@ public class EventController {
                     .body(Map.of("error", ex.getMessage()));
         }
     }
+
+    @PutMapping("/update/all/{id}/")
+    public ResponseEntity<?> updateAllApplicationsStatus(
+            @PathVariable Long id,
+            @RequestParam ApplicationStatus status) {
+        try {
+            eventService.updateStatusForAllRunners(id, status);
+            return ResponseEntity.ok("Status updated to " + status);
+        } catch (EntityNotFoundException | IllegalStateException ex) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("error", ex.getMessage()));
+        }
+    }
+
     @GetMapping("/remaining-seats/{taskId}")
     public ResponseEntity<Integer> getRemainingSeats(@PathVariable Long taskId) {
         try {

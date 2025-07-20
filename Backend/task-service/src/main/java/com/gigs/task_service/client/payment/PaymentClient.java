@@ -15,5 +15,5 @@ public interface PaymentClient {
     ResponseEntity<String> releasePayment(@PathVariable("taskId") Long taskId, @RequestParam Long recipient);
 
     @PostMapping(value = "/api/payments/refund/{taskId}")
-    ResponseEntity<String> refundPayment(@PathVariable("taskId") Long taskId);
+    ResponseEntity<String> refundPayment(@PathVariable("taskId") Long taskId, @RequestParam Long recipient);
 }

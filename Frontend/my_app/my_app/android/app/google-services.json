@@ -1,21 +1,21 @@
 {
   "project_info": {
-    "project_number": "960896037916",
-    "project_id": "gigs-8b8d6",
-    "storage_bucket": "gigs-8b8d6.firebasestorage.app"
+    "project_number": "227423980180",
+    "project_id": "gigs-ali",
+    "storage_bucket": "gigs-ali.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:960896037916:android:bf531f9d7101af77da5bd9",
+        "mobilesdk_app_id": "1:227423980180:android:56a0dad63ab2770aea8281",
         "android_client_info": {
-          "package_name": "com.example.my_app"
+          "package_name": "com.example.ali_grad"
         }
       },
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyBfMI16q8eS3BKAdBvC2-lEbN9xJ_NtDH0"
+          "current_key": "AIzaSyB3vyfxNGdl4pU937OFs0I02oAjaVOq1-Y"
         }
       ],
       "services": {

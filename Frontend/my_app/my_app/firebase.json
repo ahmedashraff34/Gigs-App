@@ -1,1 +1,8 @@
-{"flutter":{"platforms":{"android":{"default":{"projectId":"gigs-8b8d6","appId":"1:960896037916:android:bf531f9d7101af77da5bd9","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"gigs-8b8d6","configurations":{"android":"1:960896037916:android:bf531f9d7101af77da5bd9","ios":"1:960896037916:ios:aeb2576fc2749d2cda5bd9","web":"1:960896037916:web:ae04fb2f25e45f75da5bd9"}}}}}}
+{
+  "firestore": {
+    "database": "(default)",
+    "location": "africa-south1",
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  }
+}

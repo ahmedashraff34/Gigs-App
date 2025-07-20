@@ -1,69 +1,93 @@
+import 'package:ali_grad/screens/get_started_screen.dart';
+import 'package:ali_grad/screens/home/home_screen_runner.dart';
+import 'package:ali_grad/widgets/runner_shell.dart';
+import 'package:ali_grad/screens/messages_screen.dart';
+import 'package:ali_grad/screens/task/my_tasks_screen.dart';
+import 'package:ali_grad/screens/task/post_task_screen.dart';
+import 'package:ali_grad/screens/profile/edit_profile_screen.dart';
+import 'package:ali_grad/screens/profile/profile_screen.dart';
+import 'package:ali_grad/screens/task/task_details.dart';
+import 'package:ali_grad/widgets/poster_shell.dart';
 import 'package:flutter/material.dart';
-import 'Screens/auth.dart';
-import 'Screens/runner_home_screen.dart';
-import 'Screens/poster_home_screen.dart';
-import 'Screens/admin_dashboard.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'screens/home/home_screen_poster.dart';
+import 'constants/theme.dart';
+import 'screens/auth/login_screen.dart';
+import 'screens/auth/register_screen.dart';
+import 'package:persistent_bottom_nav_bar/persistent_bottom_nav_bar.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'services/token_service.dart';
+import 'package:ali_grad/screens/messages_screen.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:ali_grad/services/notification_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
-  runApp(const MyApp());
+
+  // Initialize FCM
+  FirebaseMessaging messaging = FirebaseMessaging.instance;
+
+  // Request notification permissions (iOS, Android 13+)
+  await messaging.requestPermission();
+
+  // Print the FCM device token for testing
+  String? token = await messaging.getToken();
+  print('🔑 FCM Device Token: ' + (token ?? 'No token'));
+
+  runApp(const GigsApp());
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class GigsApp extends StatelessWidget {
+  const GigsApp({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Gigs',
-      theme: ThemeData(
-        colorScheme: ColorScheme(
-          brightness: Brightness.light,
-          primary: const Color(0xFF11366A),
-          onPrimary: Colors.white,
-          secondary: const Color(0xFFEBF1FD),
-          onSecondary: const Color(0xFF11366A),
-          error: Colors.red,
-          onError: Colors.white,
-          background: const Color(0xFFF6F6F6),
-          onBackground: const Color(0xFF11366A),
-          surface: Colors.white,
-          onSurface: const Color(0xFF11366A),
-        ),
-        scaffoldBackgroundColor: const Color(0xFFF6F6F6),
-        useMaterial3: true,
-      ),
-      home: FutureBuilder<bool>(
-        future: TokenService.isAuthenticated(),
-        builder: (ctx, authSnapshot) {
-          if (authSnapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
+    // Initialize local notifications
+    NotificationService.initialize(context);
 
-          if (authSnapshot.data == true) {
-            // If the user is authenticated, we can decide where to send them.
-            // For now, let's default to the RunnerHomeScreen to show the new screen.
-            return const RunnerHomeScreen();
-          }
-
-          // If not authenticated, show the login screen.
-          return const AuthScreen();
-        },
-      ),
-      routes: {
-        '/auth': (context) => const AuthScreen(),
-        '/runner-home': (context) => const RunnerHomeScreen(),
-        '/poster-home': (context) => const PosterHomeScreen(),
-        '/admin-dashboard': (context) => const AdminDashboard(),
-      },
-      onUnknownRoute: (settings) {
-        return MaterialPageRoute(
-          builder: (context) => const AuthScreen(),
+    // Listen for foreground FCM messages and show local notification
+    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+      final notification = message.notification;
+      if (notification != null) {
+        NotificationService.showNotification(
+          title: notification.title ?? 'New Notification',
+          body: notification.body ?? '',
         );
-      },
-    );
+      }
+    });
+
+    return SafeArea(
+        child: MaterialApp(
+          title: 'Gigs',
+          debugShowCheckedModeBanner: false,
+          theme: ThemeData(
+            primaryColor: AppTheme.primaryColor,
+            scaffoldBackgroundColor: AppTheme.backgroundColor,
+            textTheme: GoogleFonts.montserratTextTheme(Theme.of(context).textTheme),
+            colorScheme: ColorScheme.fromSwatch().copyWith(
+              primary: AppTheme.primaryColor,
+              secondary: AppTheme.accentColor,
+            ),
+            appBarTheme: const AppBarTheme(
+              elevation: 0,
+              backgroundColor: Colors.white,
+              titleTextStyle: AppTheme.textStyle0,
+              iconTheme: IconThemeData(
+                color: AppTheme.textColor,
+              ),
+            ),
+          ),
+          home: const GetStartedScreen(),
+          routes: {
+            '/login': (context) => const LoginScreen(),
+            '/register': (context) => const RegisterScreen(),
+            '/profile': (context) => const ProfileScreen(),
+            '/edit-profile': (context) => const EditProfileScreen(),
+            '/poster-home': (context) => const PosterShell(),
+            '/runner-home': (context) => const RunnerShell(),
+            '/post-task': (context) => const PostTaskScreen(),
+            '/my-tasks': (context) => const MyTasksScreen(),
+          },
+        ));
   }
 }

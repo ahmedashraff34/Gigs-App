@@ -1,790 +1,528 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import '../models/task.dart';
-import '../config/api_config.dart';
-import 'token_service.dart';
-import 'dart:io';
-import '../models/offer.dart';
-import '../models/event_task.dart';
-import '../models/task_response.dart';
-import '../models/event_task_request.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import '../models/task_model.dart';
+import '../services/user_service.dart';
+import '../utils/api.dart';
 
 class TaskService {
-  List<Task> getDummyTasks() {
-    // This dummy data needs to be updated to match the new Task model.
-    // For now, I'll return an empty list to resolve the compilation errors.
-    // We can repopulate this later if needed.
-    return [];
-  }
+  final String taskEndpoint = "$apiBaseUrl/api/tasks";
+  final UserService _userService = UserService();
 
-  Future<Map<String, dynamic>> postTask(Task task) async {
-    final token = await TokenService.getToken();
-    if (token == null) {
-      return {'success': false, 'error': 'Not authenticated'};
-    }
-
-    final url = Uri.parse(ApiConfig.postTaskEndpoint);
-
-    // Debug print statements
-    print('Posting task with posterId: [33m[1m[4m[7m[41m[42m[43m[44m[45m[46m[47m[100m[101m[102m[103m[104m[105m[106m[107m${task.taskPoster}[0m');
-    print('Task payload: [36m${jsonEncode(task.toJson())}[0m');
-
+  Future<bool> postTask(taskRequest) async {
     try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
+      final userId = prefs.getString('userId');
+
+      if (token == null) {
+        print("❌ No token found - User needs to login again");
+        await _userService.handleInvalidToken();
+        return false;
+      }
+
+      if (userId == null) {
+        print("❌ No userId found - User needs to login again");
+        await _userService.handleInvalidToken();
+        return false;
+      }
+
+      // Validate token before making request
+      final isTokenValid = await _userService.isTokenValid();
+      if (!isTokenValid) {
+        print("❌ Token is invalid or expired");
+        await _userService.handleInvalidToken();
+        return false;
+      }
+
+      print("🔑 Token found: ${token.substring(0, 20)}...");
+      print("👤 User ID: $userId");
+      print("📤 Request body: ${jsonEncode(taskRequest.toJson())}");
+
       final response = await http.post(
-        url,
+        Uri.parse("$taskEndpoint/postTask"),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
         },
-        body: jsonEncode(task.toJson()),
+        body: jsonEncode(taskRequest.toJson()),
       );
+
+      print("📡 Response status: ${response.statusCode}");
+      print("📡 Response headers: ${response.headers}");
+      print("📡 Response body: ${response.body}");
 
       if (response.statusCode == 200 || response.statusCode == 201) {
-        // Handle non-JSON success responses
-        if (response.body.isNotEmpty && response.body.trim().startsWith('{')) {
-          return {'success': true, 'data': jsonDecode(response.body)};
-        }
-        return {'success': true, 'data': response.body};
+        print("✅ Task posted successfully");
+        return true;
+      } else if (response.statusCode == 401) {
+        print("❌ Authentication failed - Token may be expired or invalid");
+        print("💡 Clearing invalid token and user data");
+        await _userService.handleInvalidToken();
+        return false;
       } else {
-        return {
-          'success': false,
-          'error':
-              'Failed to post task. Status: ${response.statusCode}, Body: ${response.body}',
-        };
+        print("❌ Failed to post task: ${response.statusCode}");
+        print("Body: ${response.body}");
+        return false;
       }
     } catch (e) {
-      return {
-        'success': false,
-        'error': 'An error occurred: ${e.toString()}',
-      };
+      print("❌ Error posting task: $e");
+      return false;
     }
   }
 
-  Future<List<Task>> getTasksByPoster(String posterId) async {
-    final token = await TokenService.getToken();
-    if (token == null) {
-      throw Exception('Not authenticated');
-    }
-
-    final url = Uri.parse(ApiConfig.getTasksByPosterEndpoint(posterId));
+  Future<List<TaskResponse>> getUnassignedTasks(String userId) async {
     try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
+
+      if (token == null) {
+        print("❌ No token found");
+        return [];
+      }
       final response = await http.get(
-        url,
-        headers: {
-          'Authorization': 'Bearer $token',
-        },
-      );
-
-      if (response.statusCode == 200) {
-        final List<dynamic> taskData = jsonDecode(response.body);
-        // We'll need a Task.fromJson constructor for this to work
-        return taskData.map((data) => Task.fromJson(data)).toList();
-      } else {
-        throw Exception(
-            'Failed to load tasks. Status: ${response.statusCode}, Body: ${response.body}');
-      }
-    } catch (e) {
-      throw Exception('An error occurred: ${e.toString()}');
-    }
-  }
-
-  Future<List<Task>> getAllTasks() async {
-    final token = await TokenService.getToken();
-    if (token == null) {
-      throw Exception('Not authenticated');
-    }
-
-    final url = Uri.parse(ApiConfig.getAllTasksEndpoint);
-    try {
-      final response = await http.get(
-        url,
-        headers: {
-          'Authorization': 'Bearer $token',
-        },
-      );
-
-      if (response.statusCode == 200) {
-        final List<dynamic> taskData = jsonDecode(response.body);
-        return taskData.map((data) => Task.fromJson(data)).toList();
-      } else {
-        throw Exception(
-            'Failed to load tasks. Status: ${response.statusCode}, Body: ${response.body}');
-      }
-    } catch (e) {
-      throw Exception('An error occurred: ${e.toString()}');
-    }
-  }
-
-  Future<Map<String, dynamic>> updateTaskStatus(
-      int taskId, String newStatus, String userId) async {
-    final token = await TokenService.getToken();
-    if (token == null) {
-      return {'success': false, 'error': 'Not authenticated'};
-    }
-
-    final url = Uri.parse(
-        '${ApiConfig.updateTaskStatusEndpoint(taskId)}?newStatus=$newStatus&userId=$userId');
-
-    print('Updating task status - URL: $url');
-    print('Task ID: $taskId, New Status: $newStatus, User ID: $userId');
-
-    try {
-      final response = await http.put(
-        url,
-        headers: {
-          'Authorization': 'Bearer $token',
-        },
-      );
-
-      print('Task status update response - Status: ${response.statusCode}, Body: ${response.body}');
-
-      if (response.statusCode == 200) {
-        return {'success': true, 'data': response.body};
-      } else {
-        return {
-          'success': false,
-          'error':
-              'Failed to update status. Status: ${response.statusCode}, Body: ${response.body}',
-        };
-      }
-    } catch (e) {
-      print('Task status update error: $e');
-      return {
-        'success': false,
-        'error': 'An error occurred: ${e.toString()}',
-      };
-    }
-  }
-
-  Future<Map<String, dynamic>> deleteTask(TaskResponse task, int userId) async {
-    final token = await TokenService.getToken();
-    if (token == null) {
-      return {'success': false, 'error': 'Not authenticated'};
-    }
-
-    final url = Uri.parse('${ApiConfig.taskBaseUrl}/delete/${task.taskId}');
-    // Determine task_type
-    String taskType = 'REGULAR';
-    if (task.category == Category.EventStaffing || task.category == Category.Event) {
-      taskType = 'EVENT';
-    }
-    // Build the request body
-    if (taskType == 'REGULAR') {
-      final bodyMap = {
-        'title': task.title,
-        'description': task.description,
-        'type': task.category.name,
-        'task_type': taskType, // Required for backend polymorphic deserialization
-        'taskPoster': userId,
-        'longitude': task.longitude,
-        'latitude': task.latitude,
-        'additionalRequirements': task.additionalRequirements,
-        'amount': task.amount,
-        'additionalAttributes': task.additionalAttributes,
-      };
-      final body = jsonEncode(bodyMap);
-      try {
-        final response = await http.delete(
-          url,
-          headers: {
-            'Authorization': 'Bearer $token',
-            'Content-Type': 'application/json',
-          },
-          body: body,
-        );
-        if (response.statusCode == 200) {
-          return {'success': true, 'data': response.body};
-        } else {
-          return {
-            'success': false,
-            'error': 'Failed to delete task. Status: ${response.statusCode}, Body: ${response.body}',
-          };
-        }
-      } catch (e) {
-        return {
-          'success': false,
-          'error': 'An error occurred: ${e.toString()}',
-        };
-      }
-    } else {
-      // For event tasks, use EventTaskRequest
-      try {
-        // Use event-specific fields from top-level TaskResponse properties
-        final location = task.location;
-        final fixedPay = task.fixedPay;
-        final requiredPeople = task.requiredPeople;
-        final startDate = task.startDate;
-        final endDate = task.endDate;
-        final numberOfDays = task.numberOfDays;
-        print('[DEBUG] EventTaskRequest location (top-level): $location');
-        print('[DEBUG] EventTaskRequest fixedPay (top-level): $fixedPay');
-        print('[DEBUG] EventTaskRequest requiredPeople (top-level): $requiredPeople');
-        print('[DEBUG] EventTaskRequest startDate (top-level): $startDate');
-        print('[DEBUG] EventTaskRequest endDate (top-level): $endDate');
-        print('[DEBUG] EventTaskRequest numberOfDays (top-level): $numberOfDays');
-        final eventTaskRequest = EventTaskRequest(
-          title: task.title,
-          description: task.description,
-          type: task.category.name,
-          taskType: taskType,
-          taskPoster: userId,
-          longitude: task.longitude,
-          latitude: task.latitude,
-          location: location ?? '',
-          fixedPay: fixedPay ?? 0.0,
-          requiredPeople: requiredPeople ?? 1,
-          startDate: startDate ?? '',
-          endDate: endDate ?? '',
-          numberOfDays: numberOfDays ?? 1,
-        );
-        final body = jsonEncode(eventTaskRequest.toJson());
-        final response = await http.delete(
-          url,
-          headers: {
-            'Authorization': 'Bearer $token',
-            'Content-Type': 'application/json',
-          },
-          body: body,
-        );
-        if (response.statusCode == 200) {
-          return {'success': true, 'data': response.body};
-        } else {
-          return {
-            'success': false,
-            'error': 'Failed to delete task. Status: ${response.statusCode}, Body: ${response.body}',
-          };
-        }
-      } catch (e) {
-        return {
-          'success': false,
-          'error': 'An error occurred: ${e.toString()}',
-        };
-      }
-    }
-  }
-
-  Future<Map<String, dynamic>> postOffer({
-    required int taskId,
-    required int runnerId,
-    required double amount,
-    required String message,
-  }) async {
-    final token = await TokenService.getToken();
-    final baseUrl = Platform.isAndroid ? 'http://10.0.2.2:8082' : 'http://localhost:8082';
-    final url = Uri.parse('$baseUrl/api/offers');
-    final body = jsonEncode({
-      'taskId': taskId,
-      'runnerId': runnerId,
-      'amount': amount,
-      'comment': message,
-      'status': 'PENDING',
-    });
-    try {
-      final response = await http.post(
-        url,
-        headers: {
-          'Content-Type': 'application/json',
-          if (token != null) 'Authorization': 'Bearer $token',
-        },
-        body: body,
-      );
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        return {'success': true, 'data': response.body};
-      } else {
-        return {
-          'success': false,
-          'error': 'Failed to post offer. Status: \u001b[31m[0m${response.statusCode}, Body: ${response.body}',
-        };
-      }
-    } catch (e) {
-      return {
-        'success': false,
-        'error': 'An error occurred: ${e.toString()}',
-      };
-    }
-  }
-
-  Future<List<Offer>> getOffersForTask(int taskId) async {
-    final token = await TokenService.getToken();
-    final baseUrl = Platform.isAndroid ? 'http://10.0.2.2:8082' : 'http://localhost:8082';
-    final url = Uri.parse('$baseUrl/api/offers/task/$taskId');
-    try {
-      final response = await http.get(
-        url,
-        headers: {
-          if (token != null) 'Authorization': 'Bearer $token',
-        },
-      );
-      if (response.statusCode == 200) {
-        final List<dynamic> data = jsonDecode(response.body);
-        return data.map((json) => Offer.fromJson(json)).toList();
-      } else {
-        throw Exception('Failed to load offers. Status: ${response.statusCode}, Body: ${response.body}');
-      }
-    } catch (e) {
-      throw Exception('An error occurred: ${e.toString()}');
-    }
-  }
-
-  Future<List<Offer>> getOffersByRunner(String runnerId) async {
-    final token = await TokenService.getToken();
-    final baseUrl = Platform.isAndroid ? 'http://10.0.2.2:8082' : 'http://localhost:8082';
-    final url = Uri.parse('$baseUrl/api/offers/runner/$runnerId');
-    try {
-      final response = await http.get(
-        url,
-        headers: {
-          if (token != null) 'Authorization': 'Bearer $token',
-        },
-      );
-      if (response.statusCode == 200) {
-        final List<dynamic> data = jsonDecode(response.body);
-        return data.map((json) => Offer.fromJson(json)).toList();
-      } else {
-        throw Exception('Failed to load offers. Status: ${response.statusCode}, Body: ${response.body}');
-      }
-    } catch (e) {
-      throw Exception('An error occurred: ${e.toString()}');
-    }
-  }
-
-  Future<List<Map<String, dynamic>>> getAcceptedOffersByRunner(String runnerId) async {
-    print('[DEBUG] getAcceptedOffersByRunner called with runnerId: $runnerId');
-    final token = await TokenService.getToken();
-    final baseUrl = Platform.isAndroid ? 'http://10.0.2.2:8082' : 'http://localhost:8082';
-    final url = Uri.parse('$baseUrl/api/offers/accepted/runner/$runnerId');
-    print('[DEBUG] Making request to: $url');
-    print('[DEBUG] Token available: ${token != null}');
-    
-    try {
-      final response = await http.get(
-        url,
-        headers: {
-          if (token != null) 'Authorization': 'Bearer $token',
-        },
-      );
-      print('[DEBUG] Response status: ${response.statusCode}');
-      print('[DEBUG] Response body: ${response.body}');
-      
-      if (response.statusCode == 200) {
-        final List<dynamic> data = jsonDecode(response.body);
-        print('[DEBUG] Parsed ${data.length} items from response');
-        
-        List<Map<String, dynamic>> result = [];
-        for (final item in data) {
-          try {
-            // The backend now returns task data directly
-            // Create a TaskResponse from the item
-            final taskResponse = TaskResponse.fromJson(item);
-            
-            // Create a minimal offer object for compatibility
-            final offer = Offer(
-              id: taskResponse.taskId.toString(),
-              runnerId: runnerId,
-              amount: taskResponse.amount,
-              message: 'Accepted offer for task',
-              timestamp: DateTime.now(),
-              taskId: taskResponse.taskId.toString(),
-              status: OfferStatus.ACCEPTED,
-            );
-            
-            result.add({'offer': offer, 'task': taskResponse});
-            print('[DEBUG] Created offer/task pair for task ${taskResponse.taskId}');
-          } catch (e) {
-            print('[DEBUG] Failed to parse item: $e');
-          }
-        }
-        
-        print('[DEBUG] Created ${result.length} offer/task pairs');
-        return result;
-      } else {
-        print('[DEBUG] API call failed with status: ${response.statusCode}');
-        throw Exception('Failed to load accepted offers. Status: ${response.statusCode}, Body: ${response.body}');
-      }
-    } catch (e) {
-      print('[DEBUG] Exception in getAcceptedOffersByRunner: $e');
-      throw Exception('An error occurred: ${e.toString()}');
-    }
-  }
-
-  Future<Map<String, dynamic>> deleteOffer(String offerId) async {
-    final token = await TokenService.getToken();
-    final baseUrl = Platform.isAndroid ? 'http://10.0.2.2:8082' : 'http://localhost:8082';
-    final url = Uri.parse('$baseUrl/api/offers/$offerId/cancel');
-    try {
-      final response = await http.delete(
-        url,
-        headers: {
-          if (token != null) 'Authorization': 'Bearer $token',
-        },
-      );
-      if (response.statusCode == 200) {
-        return {'success': true, 'data': response.body};
-      } else {
-        return {
-          'success': false,
-          'error': 'Failed to delete offer. Status: ${response.statusCode}, Body: ${response.body}',
-        };
-      }
-    } catch (e) {
-      return {
-        'success': false,
-        'error': 'An error occurred: ${e.toString()}',
-      };
-    }
-  }
-
-  Future<Map<String, dynamic>> acceptOffer({
-    required String offerId,
-    required int taskId,
-    required int taskPosterId,
-  }) async {
-    final token = await TokenService.getToken();
-    final baseUrl = Platform.isAndroid ? 'http://10.0.2.2:8082' : 'http://localhost:8082';
-    final url = Uri.parse('$baseUrl/api/offers/$offerId/accept?taskId=$taskId&taskPosterId=$taskPosterId');
-    try {
-      final response = await http.put(
-        url,
-        headers: {
-          if (token != null) 'Authorization': 'Bearer $token',
-        },
-      );
-      if (response.statusCode == 200) {
-        return {'success': true, 'data': response.body};
-      } else {
-        return {
-          'success': false,
-          'error': 'Failed to accept offer. Status: ${response.statusCode}, Body: ${response.body}',
-        };
-      }
-    } catch (e) {
-      return {
-        'success': false,
-        'error': 'An error occurred: ${e.toString()}',
-      };
-    }
-  }
-
-  Future<Map<String, dynamic>> deleteAllOffersForTask(int taskId) async {
-    final token = await TokenService.getToken();
-    final baseUrl = Platform.isAndroid ? 'http://10.0.2.2:8082' : 'http://localhost:8082';
-    final url = Uri.parse('$baseUrl/api/offers/task/$taskId');
-    try {
-      final response = await http.delete(
-        url,
-        headers: {
-          if (token != null) 'Authorization': 'Bearer $token',
-        },
-      );
-      if (response.statusCode == 200) {
-        return {'success': true, 'data': response.body};
-      } else {
-        return {
-          'success': false,
-          'error': 'Failed to delete offers for task. Status: ${response.statusCode}, Body: ${response.body}',
-        };
-      }
-    } catch (e) {
-      return {
-        'success': false,
-        'error': 'An error occurred: ${e.toString()}',
-      };
-    }
-  }
-
-  Future<Map<String, dynamic>> updateTaskStatusToInProgress(int taskId) async {
-    final userId = await TokenService.getUserId();
-    if (userId == null) {
-      return {'success': false, 'error': 'User not authenticated'};
-    }
-    
-    print('Updating task $taskId status to IN_PROGRESS for user $userId');
-    
-    // Try the existing method first
-    final result = await updateTaskStatus(taskId, 'IN_PROGRESS', userId);
-    print('Task status update result: $result');
-    
-    // If it fails, try alternative method with body
-    if (!result['success']) {
-      print('Trying alternative method with request body...');
-      final alternativeResult = await updateTaskStatusWithBody(taskId, 'IN_PROGRESS', userId);
-      print('Alternative task status update result: $alternativeResult');
-      return alternativeResult;
-    }
-    
-    return result;
-  }
-
-  Future<Map<String, dynamic>> updateTaskStatusWithBody(
-      int taskId, String newStatus, String userId) async {
-    final token = await TokenService.getToken();
-    if (token == null) {
-      return {'success': false, 'error': 'Not authenticated'};
-    }
-
-    final baseUrl = Platform.isAndroid ? 'http://10.0.2.2:8081' : 'http://localhost:8081';
-    final url = Uri.parse('$baseUrl/api/tasks/regular/$taskId/status');
-
-    print('Alternative task status update - URL: $url');
-    print('Task ID: $taskId, New Status: $newStatus, User ID: $userId');
-
-    try {
-      final response = await http.put(
-        url,
+        Uri.parse("$taskEndpoint/regular/open?taskPosterId=$userId"),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
         },
-        body: jsonEncode({
-          'status': newStatus,
-          'userId': userId,
-        }),
       );
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        final List<dynamic> data = jsonDecode(response.body);
+        final List<TaskResponse> tasks = data
+            .map((json) => TaskResponse.fromJson(json as Map<String, dynamic>))
+            .toList();
 
-      print('Alternative task status update response - Status: ${response.statusCode}, Body: ${response.body}');
-
-      if (response.statusCode == 200) {
-        return {'success': true, 'data': response.body};
+        // print("✅ Unassigned tasks fetched: ${tasks.length}");
+        return tasks;
       } else {
-        return {
-          'success': false,
-          'error':
-              'Failed to update status. Status: ${response.statusCode}, Body: ${response.body}',
-        };
+        print("❌ Failed to fetch unassigned tasks: ${response.statusCode}");
+        print("Body: ${response.body}");
+        return [];
       }
     } catch (e) {
-      print('Alternative task status update error: $e');
-      return {
-        'success': false,
-        'error': 'An error occurred: ${e.toString()}',
-      };
+      print("❌ Error fetching unassigned tasks: $e");
+      return [];
     }
   }
 
-  Future<Task> getTaskById(String taskId) async {
-    final token = await TokenService.getToken();
-    final baseUrl = Platform.isAndroid ? 'http://10.0.2.2:8081' : 'http://localhost:8081';
-    final url = Uri.parse('$baseUrl/api/tasks/regular/$taskId');
+  Future<List<TaskResponse>> getOngoingTasks(String userId) async {
     try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
+
+      if (token == null) {
+        print("❌ No token found");
+        return [];
+      }
+
       final response = await http.get(
-        url,
-        headers: {
-          if (token != null) 'Authorization': 'Bearer $token',
-        },
-      );
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        return Task.fromJson(data);
-      } else {
-        throw Exception('Failed to load task. Status: ${response.statusCode}, Body: ${response.body}');
-      }
-    } catch (e) {
-      throw Exception('An error occurred: ${e.toString()}');
-    }
-  }
-
-  /// Posts a new event staffing task to the backend.
-  ///
-  /// Takes an EventTask model, serializes it to JSON, and sends it to the backend API.
-  /// Returns a map with 'success' and either 'data' or 'error'.
-  ///
-  /// Usage:
-  ///   final result = await postEventTask(eventTask);
-  Future<Map<String, dynamic>> postEventTask(EventTask eventTask) async {
-    final token = await TokenService.getToken();
-    if (token == null) {
-      return {'success': false, 'error': 'Not authenticated'};
-    }
-
-    // Prepare the API endpoint URL
-    final url = Uri.parse(ApiConfig.postTaskEndpoint);
-
-    // Debug print for developer
-    print('Posting event task with posterId: \\${eventTask.taskPoster}');
-    print('EventTask payload: \\${jsonEncode(eventTask.toJson())}');
-
-    try {
-      // Send POST request with event task data
-      final response = await http.post(
-        url,
+        Uri.parse("$taskEndpoint/poster/ongoing?taskPosterId=$userId"),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
         },
-        body: jsonEncode(eventTask.toJson()),
       );
 
-      // Handle response
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        if (response.body.isNotEmpty && response.body.trim().startsWith('{')) {
-          return {'success': true, 'data': jsonDecode(response.body)};
-        }
-        return {'success': true, 'data': response.body};
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        final List<dynamic> data = jsonDecode(response.body);
+        final List<TaskResponse> tasks = data
+            .map((json) => TaskResponse.fromJson(json as Map<String, dynamic>))
+            .toList();
+
+        // print("✅ Ongoing tasks fetched: ${tasks.length}");
+        return tasks;
       } else {
-        return {
-          'success': false,
-          'error':
-              'Failed to post event task. Status: \\${response.statusCode}, Body: \\${response.body}',
-        };
+        print("❌ Failed to fetch ongoing tasks: ${response.statusCode}");
+        print("Body: ${response.body}");
+        return [];
       }
     } catch (e) {
-      return {
-        'success': false,
-        'error': 'An error occurred: \\${e.toString()}',
-      };
+      print("❌ Error fetching ongoing tasks: $e");
+      return [];
     }
   }
 
-  Future<List<Map<String, dynamic>>> getTasksByPosterRaw(String posterId) async {
-    final token = await TokenService.getToken();
-    if (token == null) throw Exception('Not authenticated');
-    final url = Uri.parse(ApiConfig.getTasksByPosterEndpoint(posterId));
-    final response = await http.get(url, headers: {'Authorization': 'Bearer $token'});
+  Future<List<TaskResponse>?> getTasksByTaskPosterId(
+      String taskPosterId) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+    if (token == null) return [];
+    final response = await http.get(
+      Uri.parse("$taskEndpoint/poster/$taskPosterId"),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
     if (response.statusCode == 200) {
-      final List<dynamic> taskData = jsonDecode(response.body);
-      return List<Map<String, dynamic>>.from(taskData);
+      final List<dynamic> data = jsonDecode(response.body);
+      final List<TaskResponse> tasks = data
+          .map((json) => TaskResponse.fromJson(json as Map<String, dynamic>))
+          .toList();
+
+      return tasks;
     } else {
-      throw Exception('Failed to load tasks. Status: [31m${response.statusCode}, Body: ${response.body}');
+      print("jkashdfjah");
     }
+    return [];
   }
 
   Future<List<TaskResponse>> getNearbyTasks({
     required double latitude,
     required double longitude,
-    double radius = 300,
+    required double radius,
+    required String userId,
   }) async {
-    final token = await TokenService.getToken();
-    if (token == null) throw Exception('Not authenticated');
-
     final url = Uri.parse(
-      '${ApiConfig.taskBaseUrl}/nearby?lat=$latitude&lon=$longitude&radius=$radius',
-    );
+        '$taskEndpoint/nearby?lat=$latitude&lon=$longitude&radius=$radius&userId=$userId');
 
-    final response = await http.get(
-      url,
-      headers: {'Authorization': 'Bearer $token'},
-    );
-
-    if (response.statusCode == 200) {
-      final List<dynamic> data = jsonDecode(response.body);
-      return data.map((json) => TaskResponse.fromJson(json)).toList();
-    } else {
-      throw Exception('Failed to load nearby tasks. Status: \\${response.statusCode}, Body: \\${response.body}');
-    }
-  }
-
-  Future<List<TaskResponse>> getOpenRegularTasksByPoster(int posterId) async {
-    final token = await TokenService.getToken();
-    if (token == null) throw Exception('Not authenticated');
-    final url = Uri.parse('http://10.0.2.2:8081/api/tasks/regular/open?taskPosterId=$posterId');
-    final response = await http.get(
-      url,
-      headers: {'Authorization': 'Bearer $token'},
-    );
-    if (response.statusCode == 200) {
-      final List<dynamic> data = jsonDecode(response.body);
-      return data.map((json) => TaskResponse.fromJson(json)).toList();
-    } else {
-      throw Exception('Failed to load open regular tasks. Status: \\${response.statusCode}, Body: \\${response.body}');
-    }
-  }
-
-  Future<List<TaskResponse>> getOpenEventTasksByPoster(int posterId) async {
-    final token = await TokenService.getToken();
-    if (token == null) throw Exception('Not authenticated');
-    final url = Uri.parse('http://10.0.2.2:8081/api/tasks/event/open?taskPosterId=$posterId');
-    final response = await http.get(
-      url,
-      headers: {'Authorization': 'Bearer $token'},
-    );
-    if (response.statusCode == 200) {
-      final List<dynamic> data = jsonDecode(response.body);
-      return data.map((json) => TaskResponse.fromJson(json)).toList();
-    } else {
-      throw Exception('Failed to load open event tasks. Status: \\${response.statusCode}, Body: \\${response.body}');
-    }
-  }
-
-  Future<int> getTaskCountByStatus({required int userId, required String status}) async {
-    final token = await TokenService.getToken();
-    if (token == null) throw Exception('Not authenticated');
-    final url = Uri.parse('http://10.0.2.2:8081/api/tasks/count?userId=$userId&status=$status');
-    final response = await http.get(
-      url,
-      headers: {'Authorization': 'Bearer $token'},
-    );
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      if (data is int) return data;
-      if (data is Map && data.containsKey('count')) return data['count'] as int;
-      return int.tryParse(data.toString()) ?? 0;
-    } else {
-      throw Exception('Failed to fetch task count. Status: \\${response.statusCode}, Body: \\${response.body}');
-    }
-  }
-
-  Future<Map<String, dynamic>> deleteTaskById(int taskId) async {
-    final token = await TokenService.getToken();
-    if (token == null) {
-      return {'success': false, 'error': 'Not authenticated'};
-    }
-    final url = Uri.parse('http://10.0.2.2:8081/api/tasks/deleteById/$taskId');
     try {
+      final response = await http.get(url);
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(response.body);
+        return data
+            .map((json) => TaskResponse.fromJson(json as Map<String, dynamic>))
+            .toList();
+      } else {
+        print('Failed to fetch nearby tasks: ${response.statusCode}');
+        print('Response body: ${response.body}');
+        return [];
+      }
+    } catch (e) {
+      print('Error fetching nearby tasks: $e');
+      return [];
+    }
+  }
+
+  Future<bool> deleteTask(int taskId, Map<String, dynamic> body) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
+
+      if (token == null) {
+        print('No token found');
+        return false;
+      }
+
+      final url = Uri.parse('$taskEndpoint/delete/$taskId');
       final response = await http.delete(
         url,
         headers: {
-          'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
         },
+        body: jsonEncode(body),
       );
+
       if (response.statusCode == 200) {
-        return {'success': true, 'data': response.body};
+        print('✅ Task deleted successfully');
+        return true;
       } else {
-        return {
-          'success': false,
-          'error': 'Failed to delete task. Status: \\${response.statusCode}, Body: \\${response.body}',
-        };
+        print('❌ Failed to delete task: ${response.statusCode}');
+        print('Response body: ${response.body}');
+        return false;
       }
     } catch (e) {
-      return {
-        'success': false,
-        'error': 'An error occurred: \\${e.toString()}',
-      };
+      print('❌ Error deleting task: $e');
+      return false;
     }
   }
 
-  Future<Map<String, dynamic>> acceptRegularTaskOffer({
-    required int taskId,
-    required int taskPosterId,
-    required int runnerId,
-    required double amount,
-  }) async {
-    final token = await TokenService.getToken();
-    if (token == null) {
-      return {'success': false, 'error': 'Not authenticated'};
-    }
-    final url = Uri.parse('http://10.0.2.2:8081/api/tasks/$taskId/accept?taskPosterId=$taskPosterId&runnerId=$runnerId&amount=$amount');
+  Future<TaskResponse?> fetchRegularTaskById(int taskId) async {
+    final url = Uri.parse('$taskEndpoint/regular/$taskId');
+
     try {
+      final response = await http.get(url);
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return TaskResponse.fromJson(data);
+      } else if (response.statusCode == 404) {
+        print("Task not found");
+      } else if (response.statusCode == 400) {
+        print("Task is not a RegularTask");
+      } else {
+        print("Unexpected error: ${response.statusCode}");
+      }
+    } catch (e) {
+      print("Error fetching task: $e");
+    }
+
+    return null;
+  }
+
+  Future<bool> updateTaskStatus({
+    required int taskId,
+    required String newStatus, // or TaskStatus if you have an enum
+    required int userId,
+  }) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
+
+      if (token == null) {
+        print('No token found');
+        return false;
+      }
+
+      final url = Uri.parse(
+          "$taskEndpoint/$taskId/status?newStatus=$newStatus&userId=$userId");
       final response = await http.put(
         url,
         headers: {
-          'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        print('✅ Task status updated successfully');
+        return true;
+      } else {
+        print('❌ Failed to update task status: \\${response.statusCode}');
+        print('Response body: \\${response.body}');
+        return false;
+      }
+    } catch (e) {
+      print('❌ Error updating task status: $e');
+      return false;
+    }
+  }
+
+  Future<bool> editTask(int taskId, dynamic taskRequest) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
+      if (token == null) {
+        print('❌ No token found - User needs to login again');
+        await _userService.handleInvalidToken();
+        return false;
+      }
+      // Validate token before making request
+      final isTokenValid = await _userService.isTokenValid();
+      if (!isTokenValid) {
+        print('❌ Token is invalid or expired');
+        await _userService.handleInvalidToken();
+        return false;
+      }
+      print('📤 Edit Task body: ${jsonEncode(taskRequest.toJson())}');
+      final response = await http.put(
+        Uri.parse('$taskEndpoint/edit/$taskId'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode(taskRequest.toJson()),
+      );
+      print('📡 Response status: ${response.statusCode}');
+      print('📡 Response body: ${response.body}');
+      if (response.statusCode == 200) {
+        print('✅ Task edited successfully');
+        return true;
+      } else if (response.statusCode == 401) {
+        print('❌ Authentication failed - Token may be expired or invalid');
+        await _userService.handleInvalidToken();
+        return false;
+      } else {
+        print('❌ Failed to edit task: ${response.statusCode}');
+        print('Body: ${response.body}');
+        return false;
+      }
+    } catch (e) {
+      print('❌ Error editing task: $e');
+      return false;
+    }
+  }
+
+  /// Count tasks by status for a specific user
+  ///
+  /// [userId] - The ID of the user (task poster or runner)
+  /// [status] - The status to count (e.g., 'DONE', 'OPEN', 'IN_PROGRESS', etc.)
+  /// Returns the count of tasks with the specified status for the user
+  Future<int> countTasksByStatusForUser(int userId, String status) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
+
+      if (token == null) {
+        print('❌ No token found - User needs to login again');
+        await _userService.handleInvalidToken();
+        return 0;
+      }
+
+      // Validate token before making request
+      final isTokenValid = await _userService.isTokenValid();
+      if (!isTokenValid) {
+        print('❌ Token is invalid or expired');
+        await _userService.handleInvalidToken();
+        return 0;
+      }
+
+      final url =
+          Uri.parse('$taskEndpoint/count?userId=$userId&status=$status');
+
+      print('📡 Counting tasks for user $userId with status: $status');
+
+      final response = await http.get(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      print('📡 Count response status: ${response.statusCode}');
+      print('📡 Count response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final count = int.tryParse(response.body) ?? 0;
+        print('✅ Found $count tasks with status: $status for user: $userId');
+        return count;
+      } else if (response.statusCode == 401) {
+        print('❌ Authentication failed - Token may be expired or invalid');
+        await _userService.handleInvalidToken();
+        return 0;
+      } else {
+        print('❌ Failed to count tasks: ${response.statusCode}');
+        print('Body: ${response.body}');
+        return 0;
+      }
+    } catch (e) {
+      print('❌ Error counting tasks: $e');
+      return 0;
+    }
+  }
+
+  Future<int> countCompletedTasksForUser(int userId) async {
+    return await countTasksByStatusForUser(userId, 'DONE');
+  }
+
+  Future<int> countOpenTasksForUser(int userId) async {
+    return await countTasksByStatusForUser(userId, 'OPEN');
+  }
+
+  Future<int> countInProgressTasksForUser(int userId) async {
+    return await countTasksByStatusForUser(userId, 'IN_PROGRESS');
+  }
+
+  Future<bool> removeRunnerFromEventTask({
+    required int taskId,
+    required int runnerId,
+    required int taskPosterId,
+  }) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
+      if (token == null) {
+        print('No token found');
+        return false;
+      }
+      final url = Uri.parse(
+          '$taskEndpoint/$taskId/remove-runner/$runnerId?taskPosterId=$taskPosterId');
+      final response = await http.delete(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
         },
       );
       if (response.statusCode == 200) {
-        return {'success': true, 'data': response.body};
+        print('✅ Runner removed and refund processed successfully.');
+        return true;
       } else {
-        return {
-          'success': false,
-          'error': 'Failed to accept offer. Status: \\${response.statusCode}, Body: \\${response.body}',
-        };
+        print('❌ Failed to remove runner: \\${response.statusCode}');
+        print('Response body: \\${response.body}');
+        return false;
       }
     } catch (e) {
-      return {
-        'success': false,
-        'error': 'An error occurred: \\${e.toString()}',
-      };
+      print('❌ Error removing runner from event task: $e');
+      return false;
+    }
+  }
+
+  /// Calls the AI description generation endpoint and returns the generated description.
+  Future<String?> generateAIDescription(Map<String, dynamic> taskData) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
+      if (token == null) {
+        print('❌ No token found - User needs to login again');
+        await _userService.handleInvalidToken();
+        return null;
+      }
+      // Validate token before making request
+      final isTokenValid = await _userService.isTokenValid();
+      if (!isTokenValid) {
+        print('❌ Token is invalid or expired');
+        await _userService.handleInvalidToken();
+        return null;
+      }
+      final url = Uri.parse(
+          'https://3551e03c7702.ngrok-free.app/api/tasks/suggest-description');
+      final response = await http.post(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode(taskData),
+      );
+      print('📡 AI Description response status: ${response.statusCode}');
+      print('📡 AI Description response body: ${response.body}');
+      if (response.statusCode == 200) {
+        return response.body;
+      } else {
+        print('❌ Failed to generate AI description: ${response.statusCode}');
+        print('Body: ${response.body}');
+        return null;
+      }
+    } catch (e) {
+      print('❌ Error generating AI description: $e');
+      return null;
+    }
+  }
+
+  Future<String?> generateAIPrice(Map<String, dynamic> taskData) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
+      if (token == null) {
+        print('❌ No token found - User needs to login again');
+        await _userService.handleInvalidToken();
+        return null;
+      }
+      // Validate token before making request
+      final isTokenValid = await _userService.isTokenValid();
+      if (!isTokenValid) {
+        print('❌ Token is invalid or expired');
+        await _userService.handleInvalidToken();
+        return null;
+      }
+      final url = Uri.parse(
+          'https://3551e03c7702.ngrok-free.app/api/tasks/suggest-price');
+      final response = await http.post(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode(taskData),
+      );
+      print('📡 AI Description response status: ${response.statusCode}');
+      print('📡 AI Description response body: ${response.body}');
+      if (response.statusCode == 200) {
+        return response.body;
+      } else {
+        print('❌ Failed to generate AI description: ${response.statusCode}');
+        print('Body: ${response.body}');
+        return null;
+      }
+    } catch (e) {
+      print('❌ Error generating AI description: $e');
+      return null;
     }
   }
 }

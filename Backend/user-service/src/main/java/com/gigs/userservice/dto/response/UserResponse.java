@@ -17,6 +17,7 @@ public class UserResponse {
     private String username;
     private double balance;
     private String keycloakId;
+    private String profileUrl;
 
     public static UserResponse fromUser(User user) {
         return UserResponse.builder()
@@ -29,6 +30,7 @@ public class UserResponse {
                 .username(user.getUsername())
                 .keycloakId(user.getKeycloakId())
                 .balance(user.getBalance())
+                .profileUrl(user.getProfileUrl())
                 .build();
     }
 }

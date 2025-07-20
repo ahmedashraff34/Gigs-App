@@ -1,5 +1,6 @@
 package com.gigs.task_service.controller;
 
+import com.gigs.task_service.dto.request.TaskDynamicPriceRequest;
 import com.gigs.task_service.dto.request.TaskRequest;
 import com.gigs.task_service.dto.response.ErrorResponse;
 import com.gigs.task_service.dto.response.EventStaffingTaskResponse;
@@ -21,6 +22,7 @@ import java.util.NoSuchElementException;
 
 @RestController
 @RequestMapping("/api/tasks")
+@CrossOrigin(origins = "http://localhost:5173")
 public class TaskController {
 
     private final TaskService taskService;
@@ -254,11 +256,67 @@ public class TaskController {
         }
     }
 
+    @DeleteMapping("/{taskId}/remove-runner/{runnerId}")
+    public ResponseEntity<?> removeRunnerFromEventTask(
+            @PathVariable Long taskId,
+            @PathVariable Long runnerId,
+            @RequestParam Long taskPosterId) {
+        try {
+            taskService.removeRunnerFromEventTask(taskId, runnerId, taskPosterId);
+            return ResponseEntity.ok("Runner removed and refund processed successfully.");
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        } catch (Exception e) {
+            // Unexpected errors
+            e.printStackTrace(); // log the full error stack trace
+            return ResponseEntity
+                    .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Unexpected error occurred: " + e.getMessage());
+        }
+    }
+
     @GetMapping("/poster/ongoing")
     public ResponseEntity<List<TaskResponse>> getOngoingForPoster(
             @RequestParam("taskPosterId") Long taskPosterId) {
         List<TaskResponse> list = taskService.getOngoingTasksForPoster(taskPosterId);
         return ResponseEntity.ok(list);
     }
+    //Mo (Ai/ML)
+    @PostMapping("/suggest-price")
+    public ResponseEntity<String> suggestPrice(@RequestBody TaskDynamicPriceRequest task) {
+        String price = taskService.suggestPrice(task);
+        return ResponseEntity.ok(price);
+    }
+
+    @PostMapping("/suggest-description")
+    public ResponseEntity<String> suggestDescription(@RequestBody TaskDynamicPriceRequest task) {
+        String desc = taskService.suggestDescription(task);
+        return ResponseEntity.ok(desc);
+    }
+
+    @DeleteMapping("/instant-delete/{taskId}")
+    public ResponseEntity<?> instantDeleteTask(@PathVariable Long taskId) {
+        try {
+            // You might want to add admin authorization check here
+            taskService.instantDeleteTask(taskId);
+            return ResponseEntity.ok("Task deleted successfully.");
+        } catch (ValidationException e) {
+            String msg = e.getMessage();
+            if ("Task not found".equals(msg)) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(new ErrorResponse(msg));
+            } else {
+                return ResponseEntity.badRequest()
+                        .body(new ErrorResponse(msg));
+            }
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(new ErrorResponse("An unexpected error occurred"));
+        }
+    }
+
+
+
+
 
 }

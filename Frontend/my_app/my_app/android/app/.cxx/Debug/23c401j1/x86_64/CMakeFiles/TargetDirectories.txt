@@ -1,0 +1,2 @@
+C:/Users/pierr/Desktop/FINAL PROJECT FOR GRAD/Frontend/android/app/.cxx/Debug/23c401j1/x86_64/CMakeFiles/edit_cache.dir
+C:/Users/pierr/Desktop/FINAL PROJECT FOR GRAD/Frontend/android/app/.cxx/Debug/23c401j1/x86_64/CMakeFiles/rebuild_cache.dir

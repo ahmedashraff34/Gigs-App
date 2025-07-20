@@ -1,10 +1,12 @@
 package com.gigs.task_service.dto.response;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import jakarta.persistence.ElementCollection;
 import lombok.*;
 import lombok.experimental.SuperBuilder;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Data
 @SuperBuilder
@@ -21,4 +23,5 @@ public class TaskResponse {
     private JsonNode additionalRequirements;
     private String status;
     private LocalDateTime createdDate;
+    private List<String> imageUrls;
 }

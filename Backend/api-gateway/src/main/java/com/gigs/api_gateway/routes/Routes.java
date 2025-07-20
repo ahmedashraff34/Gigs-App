@@ -34,6 +34,9 @@ public class Routes {
                 .route("dispute-service", r -> r
                         .path("/api/disputes/**")
                         .uri("lb://dispute-service"))
+                .route("admin-dispute-service", r -> r
+                        .path("/api/admin/disputes/**")
+                        .uri("lb://dispute-service"))
 
 
                 .build();

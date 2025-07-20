@@ -1,10 +1,14 @@
 package com.gigs.task_service.service;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.gigs.task_service.client.MistralClient;
 import com.gigs.task_service.client.payment.PaymentClient;
 import com.gigs.task_service.client.payment.PaymentRequest;
 import com.gigs.task_service.client.EventClient;
 import com.gigs.task_service.client.OfferClient;
 import com.gigs.task_service.client.UserClient;
+import com.gigs.task_service.dto.request.TaskDynamicPriceRequest;
 import com.gigs.task_service.dto.request.TaskRequest;
 import com.gigs.task_service.dto.response.EventStaffingTaskResponse;
 import com.gigs.task_service.dto.response.RegularTaskResponse;
@@ -17,15 +21,13 @@ import com.gigs.task_service.model.TaskStatus;
 import com.gigs.task_service.repository.TaskRepository;
 import com.gigs.task_service.validation.DefaultValidationService;
 import jakarta.transaction.Transactional;
+import jakarta.validation.ValidationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 
-import java.util.List;
-import java.util.NoSuchElementException;
-import java.util.Objects;
-import java.util.Optional;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -39,8 +41,11 @@ public class TaskService {
     private final OfferClient offerClient;
     private final EventClient eventClient;
     private final DefaultValidationService validationService;
+    private final NotificationService notificationService;
+    //Mo(for Ai/ML)
+    private MistralClient mistralClient;
     @Autowired
-    public TaskService(TaskRepository taskRepository, PaymentClient paymentClient, TaskFactoryProvider taskFactoryProvider, UserClient userClient,OfferClient offerClient,EventClient eventClient, DefaultValidationService validationService) {
+    public TaskService(TaskRepository taskRepository, PaymentClient paymentClient, TaskFactoryProvider taskFactoryProvider, UserClient userClient,OfferClient offerClient,EventClient eventClient, DefaultValidationService validationService, NotificationService notificationService, MistralClient mistralClient) {
         this.taskRepository = taskRepository;
         this.paymentClient = paymentClient;
         this.taskFactoryProvider = taskFactoryProvider;
@@ -48,11 +53,21 @@ public class TaskService {
         this.offerClient = offerClient;
         this.eventClient=eventClient;
         this.validationService = validationService;
+        this.notificationService = notificationService;
+        this.mistralClient = mistralClient;
     }
     public TaskResponse createTask(TaskRequest taskRequest) {
         validationService.validateCreate(taskRequest);
         Task newTask = taskFactoryProvider.createTask(taskRequest);
         Task savedTask = taskRepository.save(newTask);
+        
+        // Send notification after task is successfully created
+        notificationService.sendTaskCreatedNotification(
+            savedTask.getTaskPoster(), 
+            savedTask.getTaskId(), 
+            savedTask.getTitle()
+        );
+        
         return savedTask.toDto();
     }
 
@@ -172,13 +187,23 @@ public class TaskService {
         }
         else if (newStatus == TaskStatus.COMPLETED) {
             if (task instanceof RegularTask regularTask) {
+
                 // payment release for runner
                 try {
                     paymentClient.releasePayment(taskId, regularTask.getRunnerId());
                 } catch (Exception e) {
                     System.err.println("Failed to release payment for RegularTask: " + e.getMessage());
                 }
+                //Mark offer status as PAID (Mo new)
+                try{
+                    offerClient.updateOfferStatus(regularTask.getTaskId(),"PAID");
+                }
+                catch (Exception e){
+                    System.err.println("Failed to update offer status: " + e.getMessage());
+
+                }
             } else if (task instanceof EventStaffingTask eventTask) {
+
                 // payment release for each runner
                 for (Long recipient : eventTask.getRunnerIds()) {
                     try {
@@ -186,6 +211,12 @@ public class TaskService {
                     } catch (Exception e) {
                         System.err.println("Failed to release payment for recipient ID " + recipient + ": " + e.getMessage());
                     }
+                }
+               // Mark event  applications as PAID
+                try{
+                    eventClient.updateApplicationStatus(eventTask.getTaskId(),"PAID");
+                }catch (Exception e){
+                    System.err.println("Failed to update application status: " + e.getMessage());
                 }
             }
         }
@@ -200,6 +231,13 @@ public class TaskService {
         // Update status
         task.setStatus(newStatus);
         taskRepository.save(task);
+
+        // Send notification after task status is successfully updated
+        notificationService.sendTaskStatusUpdateNotification(
+            task.getTaskPoster(), 
+            task.getTaskId(), 
+            task.getTitle()
+        );
 
         return ResponseEntity.ok("Task status updated to " + newStatus);
     }
@@ -386,6 +424,56 @@ public class TaskService {
 
     }
 
+    @Transactional
+    public void removeRunnerFromEventTask(Long taskId, Long runnerId, Long taskPosterId) {
+        // 1) Verify that the task poster exists
+        if (!userClient.existsById(taskPosterId)) {
+            throw new IllegalArgumentException("Task poster not found: " + taskPosterId);
+        }
+
+        // 2) Load the task
+        Task t = taskRepository.findById(taskId)
+                .orElseThrow(() -> new IllegalArgumentException("Task not found: " + taskId));
+
+        // 3) Ensure it's an EventStaffingTask
+        if (!(t instanceof EventStaffingTask)) {
+            throw new IllegalArgumentException("Task " + taskId + " is not an EventStaffingTask");
+        }
+        EventStaffingTask task = (EventStaffingTask) t;
+
+        // 4) Check task poster match
+        if (!task.getTaskPoster().equals(taskPosterId)) {
+            throw new IllegalArgumentException("Provided taskPosterId does not match task owner");
+        }
+
+        // 5) Ensure runner exists
+        if (!userClient.existsById(runnerId)) {
+            throw new IllegalArgumentException("Runner not found: " + runnerId);
+        }
+
+        // 6) Confirm runner is assigned
+        if (!task.getRunnerIds().contains(runnerId)) {
+            throw new IllegalStateException("Runner " + runnerId + " is not assigned to this task");
+        }
+
+        // 7) Remove runner
+        task.getRunnerIds().remove(runnerId);
+        taskRepository.save(task);
+
+        // 8) Call refund endpoint
+        try {
+            paymentClient.refundPayment(taskId,runnerId);
+        } catch (Exception e) {
+            System.err.println("Refund failed for task ID " + taskId + ": " + e.getMessage());
+            throw new IllegalStateException("Refund processing failed, runner was removed");
+        }
+        //Mo fix
+        try{
+            eventClient.removeApplication(runnerId, taskId);
+        }catch (Exception e){
+            System.err.println("Failed to remove application for runner ID " + runnerId + ": " + e.getMessage());
+        }
+    }
 
     public List<TaskResponse> getOngoingTasksForPoster(Long posterId) {
         return taskRepository.findByTaskPosterAndStatus(posterId, TaskStatus.IN_PROGRESS)
@@ -396,4 +484,135 @@ public class TaskService {
 
 
 
+    //Mo (Ai/ML)
+    public String suggestPrice(TaskDynamicPriceRequest task) {
+        StringBuilder prompt = new StringBuilder();
+
+        // Improved prompt with pricing bounds
+        prompt.append("You are an AI pricing assistant for a task marketplace in Egypt. ");
+        prompt.append("Based on the following task details, suggest a fair and reasonable price in Egyptian Pounds (EGP). ");
+        prompt.append("The price must be affordable and realistic for a typical user. ");
+        prompt.append("Return only a number between 50 and 1000 — no currency symbols, no extra text, no explanation.\n\n");
+
+        // Add task details
+        prompt.append("Title: ").append(task.getTitle()).append("\n");
+        prompt.append("Type: ").append(task.getType()).append("\n");
+        prompt.append("Description: ").append(task.getDescription()).append("\n\n");
+
+        prompt.append("Additional Requirements:\n");
+        prompt.append(formatJsonNode(task.getAdditionalRequirements()));
+
+        prompt.append("Additional Attributes:\n");
+        prompt.append(formatJsonNode(task.getAdditionalAttributes()));
+
+        // Prepare the request
+        Map<String, Object> requestBody = Map.of(
+                "model", "mistral",
+                "prompt", prompt.toString(),
+                "stream", false
+        );
+
+        // Call mistral and parse the response
+        String rawResponse = mistralClient.generatePrompt(requestBody);
+
+        try {
+            ObjectMapper mapper = new ObjectMapper();
+            JsonNode root = mapper.readTree(rawResponse);
+            String priceText = root.get("response").asText().trim();
+
+            // Try to parse price and apply bounds
+            int price = Integer.parseInt(priceText.replaceAll("[^\\d]", "")); // remove any non-digit
+            price = Math.max(50, Math.min(1000, price)); // clamp between 50–1000
+
+            return String.valueOf(price);
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return "Error";
+        }
+    }
+
+    public String suggestDescription(TaskDynamicPriceRequest task) {
+        StringBuilder prompt = new StringBuilder();
+
+        // Strong prompt: max 3 sentences, no labels, no formatting
+        prompt.append("You are an AI assistant that specializes in writing professional, clear, and concise task descriptions for a job marketplace. ");
+        prompt.append("Based on the provided task details, generate a straight-to-the-point task description in a single well-written paragraph. ");
+        prompt.append("Limit the response to a maximum of three sentences. ");
+        prompt.append("Do NOT use bullet points, titles, or lists. Do NOT start with anything like 'Task:', 'Task Description:', 'Description:' or any label. ");
+        prompt.append("Return ONLY the paragraph of the description — no headers, no labels, no extra text.\n\n");
+
+        // Task details
+        prompt.append("Title: ").append(task.getTitle()).append("\n");
+        prompt.append("Type: ").append(task.getType()).append("\n");
+
+        prompt.append("\nAdditional Requirements:\n");
+        prompt.append(formatJsonNode(task.getAdditionalRequirements()));
+
+        prompt.append("\nAdditional Attributes:\n");
+        prompt.append(formatJsonNode(task.getAdditionalAttributes()));
+
+        // Prepare request to Mistral model
+        Map<String, Object> requestBody = Map.of(
+                "model", "mistral",
+                "prompt", prompt.toString(),
+                "stream", false
+        );
+
+        // Call mistralClient and parse the response
+        String rawResponse = mistralClient.generatePrompt(requestBody);
+
+        try {
+            ObjectMapper mapper = new ObjectMapper();
+            JsonNode root = mapper.readTree(rawResponse);
+
+            // Extract the response and clean it from any unwanted prefixes
+            return root.get("response")
+                    .asText()
+                    .trim()
+                    .replaceFirst("^(?i)(Task Description:|Task:|Description:|Requirement:)\\s*", "")
+                    .trim();
+        } catch (Exception e) {
+            e.printStackTrace();
+            return "Error generating description.";
+        }
+    }
+
+
+    private String formatJsonNode(JsonNode node) {
+            if (node == null || node.isEmpty()) return "None provided.\n";
+
+            StringBuilder formatted = new StringBuilder();
+            node.fields().forEachRemaining(entry -> {
+                String key = capitalize(entry.getKey().replace("_", " "));
+                String value = entry.getValue().isTextual() ? entry.getValue().asText() : entry.getValue().toString();
+                formatted.append("- ").append(key).append(": ").append(value).append("\n");
+            });
+            return formatted.toString();
+        }
+
+        private String capitalize(String str) {
+            if (str == null || str.isEmpty()) return str;
+            return str.substring(0, 1).toUpperCase() + str.substring(1);
+        }
+
+    public void instantDeleteTask(Long taskId) {
+        // Validate taskId is not null
+        if (taskId == null) {
+            throw new ValidationException("Task ID cannot be null");
+        }
+
+        // Check if task exists
+        if (!taskRepository.existsById(taskId)) {
+            throw new ValidationException("Task not found");
+        }
+
+        // Delete the task immediately (admin override)
+        taskRepository.deleteById(taskId);
+    }
 }
+
+
+
+
+

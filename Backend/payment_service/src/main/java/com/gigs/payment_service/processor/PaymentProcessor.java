@@ -5,6 +5,6 @@ import com.gigs.payment_service.model.Payment;
 
 public interface PaymentProcessor {
     public boolean processPayment(PaymentRequest payment);
-    public boolean refundPayment(Long taskId);
+    public boolean refundPayment(Long taskId, Long recipient);
     public boolean releasePayment(Long taskId, Long recipient);
 }

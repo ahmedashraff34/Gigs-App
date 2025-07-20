@@ -6,6 +6,7 @@ import lombok.experimental.SuperBuilder;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Data
 @SuperBuilder
@@ -31,4 +32,5 @@ public class TaskResponse {
     private LocalDate endDate;
     //for possibly QR
     private int numberOfDays;
+
 }

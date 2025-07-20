@@ -10,6 +10,8 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import org.hibernate.annotations.Type;
 
+import java.util.List;
+
 @Entity
 public class RegularTask extends Task {
 
@@ -33,8 +35,8 @@ public class RegularTask extends Task {
     public RegularTask() {}
 
     public RegularTask(Long taskPoster, String title, String description, String type,
-                       double longitude, double latitude, double amount, JsonNode additionalRequirements,JsonNode additionalAttributes) {
-        super(taskPoster, title, description, type, longitude, latitude,additionalRequirements);
+                       double longitude, double latitude, double amount, JsonNode additionalRequirements, JsonNode additionalAttributes,List<String> imageUrls) {
+        super(taskPoster, title, description, type, longitude, latitude,additionalRequirements,imageUrls);
         this.amount = amount;
         this.additionalAttributes = additionalAttributes;
     }
@@ -51,6 +53,7 @@ public class RegularTask extends Task {
     public TaskResponse toDto() {
         return RegularTaskResponse.builder()
                 .taskId(getTaskId())
+                .imageUrls(getImageUrls())
                 .taskPoster(getTaskPoster())
                 .title(getTitle())
                 .description(getDescription())

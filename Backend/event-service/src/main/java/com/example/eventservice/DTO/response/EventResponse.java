@@ -16,5 +16,5 @@ public class EventResponse {
     private ApplicationStatus status;
     private String resumeLink;
     private String profilePic;
-    //private String videoUrl;
+    private String videoUrl;
 }

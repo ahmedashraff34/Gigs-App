@@ -6,6 +6,7 @@ import com.gigs.userservice.dto.request.UpdateBasicProfileBody;
 import com.gigs.userservice.dto.response.UserResponse;
 import com.gigs.userservice.model.User;
 import com.gigs.userservice.repository.UserRepository;
+import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -101,6 +102,10 @@ public class UserService {
             user.setPhoneNumber(body.getPhoneNumber());
             updated = true;
         }
+        if (body.getProfileUrl() != null){
+            user.setProfileUrl(body.getProfileUrl());
+            updated = true;
+        }
 
         if (!updated) {
             throw new IllegalArgumentException("No changes detected in the profile");
@@ -114,6 +119,14 @@ public class UserService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new NoSuchElementException("User not found"));
         user.setKeycloakId(keycloakId);
+        userRepository.save(user);
+    }
+
+    public void updateProfileUrl(Long userId, String profileUrl) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new EntityNotFoundException("User not found with id: " + userId));
+
+        user.setProfileUrl(profileUrl);
         userRepository.save(user);
     }
 

@@ -50,8 +50,9 @@ public class EventStaffingTask extends Task {
                              JsonNode additionalRequirements,
                              LocalDate startDate,
                              LocalDate endDate,
-                             int numberOfDays) {
-        super(taskPoster, title, description, type, longitude, latitude, additionalRequirements);
+                             int numberOfDays,
+                             List<String> imageUrls) {
+        super(taskPoster, title, description, type, longitude, latitude, additionalRequirements,imageUrls);
         this.location = location;
         this.fixedPay = fixedPay;
         this.requiredPeople = requiredPeople;
@@ -77,6 +78,7 @@ public class EventStaffingTask extends Task {
     public TaskResponse toDto() {
         return EventStaffingTaskResponse.builder()
                 .taskId(getTaskId())
+                .imageUrls(getImageUrls())
                 .taskPoster(getTaskPoster())
                 .title(getTitle())
                 .description(getDescription())

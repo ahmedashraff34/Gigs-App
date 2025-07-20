@@ -3,9 +3,12 @@ package com.gigs.task_service.dto.request;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.databind.JsonNode;
+import jakarta.persistence.ElementCollection;
 import jakarta.persistence.Lob;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+
+import java.util.List;
 
 @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "task_type")
 @JsonSubTypes({
@@ -35,6 +38,8 @@ public abstract class TaskRequest {
     @Lob
     private JsonNode additionalRequirements;
 
+    private List<String> imageUrls;
+
     // Getters and Setters
     public String getTitle() { return title; }
     public void setTitle(String title) { this.title = title; }
@@ -60,5 +65,12 @@ public abstract class TaskRequest {
 
     public void setAdditionalRequirements(JsonNode additionalRequirements) {
         this.additionalRequirements = additionalRequirements;
+    }
+    public List<String> getImageUrls() {
+        return imageUrls;
+    }
+
+    public void setImageUrls(List<String> imageUrls) {
+        this.imageUrls = imageUrls;
     }
 }

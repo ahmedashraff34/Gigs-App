@@ -8,6 +8,7 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.Type;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Entity
 @Inheritance(strategy = InheritanceType.JOINED)
@@ -49,11 +50,16 @@ public abstract class Task {
     private TaskStatus status = TaskStatus.OPEN;
 
 
+
+    @ElementCollection
+    private List<String> imageUrls;
+
+
     // Constructors
     public Task() {}
 
     public Task(Long taskPoster, String title, String description, String type,
-                double longitude, double latitude, JsonNode additionalRequirements) {
+                double longitude, double latitude, JsonNode additionalRequirements,List<String> imageUrls) {
         this.taskPoster = taskPoster;
         this.title = title;
         this.description = description;
@@ -62,6 +68,7 @@ public abstract class Task {
         this.latitude = latitude;
         this.additionalRequirements = additionalRequirements;
         this.status = (status != null) ? status : TaskStatus.OPEN;
+        this.imageUrls = imageUrls;
     }
     public void updateCommonAttributes(TaskRequest taskRequest) {
         this.title = taskRequest.getTitle();
@@ -70,6 +77,7 @@ public abstract class Task {
         this.longitude = taskRequest.getLongitude();
         this.latitude = taskRequest.getLatitude();
         this.additionalRequirements = taskRequest.getAdditionalRequirements();
+        this.imageUrls = taskRequest.getImageUrls();
     }
 
 
@@ -108,6 +116,14 @@ public abstract class Task {
 
     public void setStatus(TaskStatus status) {
         this.status = status;
+    }
+
+    public List<String> getImageUrls() {
+        return imageUrls;
+    }
+
+    public void setImageUrls(List<String> imageUrls) {
+        this.imageUrls = imageUrls;
     }
 
 }
